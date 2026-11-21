@@ -6,12 +6,12 @@ Report automated spam replies on X to [Blocked for AI Reply](https://blockedfora
 
 <table role="presentation">
   <tr>
-    <td align="center" valign="top"><strong>1. Click Report AI Post</strong><br><img src="imgs/X_post_view.png" alt="Three posts in the X feed, each with a Report AI Post button" width="350"></td>
-    <td align="center" valign="top"><strong>2. Review and send</strong><br><img src="imgs/report_page_autofilled.png" alt="Report form with the post link filled in and a Send report button" width="250"></td>
+    <td align="center" valign="top"><strong>1. Click Report AI Post</strong><br><img src="imgs/X_post_view.png" alt="Three posts in the X feed, each with a Report AI Post button" width="620"></td>
+    <td align="center" valign="top"><strong>2. Review and send</strong><br><img src="imgs/report_page_autofilled.png" alt="Report form with the post link filled in and a Send report button" width="387"></td>
   </tr>
   <tr>
-    <td align="center" valign="top"><strong>Blocklist badge on X</strong><br><img src="imgs/levelsblocked.png" alt="Blocked badge beside an author's name on X" width="250"></td>
-    <td align="center" valign="top"><strong>Extension popup</strong><br><img src="imgs/extension_view.png" alt="Extension popup with controls and sync status" width="250"></td>
+    <td align="center" valign="top"><strong>Blocklist badge on X</strong><br><img src="imgs/levelsblocked.png" alt="Blocked badge beside an author's name on X" width="620"></td>
+    <td align="center" valign="top"><strong>Extension popup</strong><br><img src="imgs/extension_view.png" alt="Extension popup with controls and sync status" width="487"></td>
   </tr>
 </table>
 
