@@ -15,23 +15,11 @@ Report an X post to [Blocked for AI Reply](https://blockedforaireply.levels.io/)
 
 ## Install or upgrade
 
-1. Download the extension ZIP from [GitHub Releases](https://github.com/nickash2/ai-spam-reporter-for-x/releases/latest) and extract it.
+1. In the release's **Assets** section on [GitHub Releases](https://github.com/nickash2/ai-spam-reporter-for-x/releases/latest), download `ai-spam-reporter-for-x-vX.Y.Z.zip` and extract it. Do not download GitHub's **Source code (zip)** archive; that contains the full repository.
 2. In Chrome, open `chrome://extensions` and enable **Developer mode**.
 3. Pick **Load unpacked** and select the extracted `extension` folder containing `manifest.json`.
 4. Refresh any X tabs you already had open. If you installed the earlier prototype from a different folder, disable it to avoid two toolbar icons and right-click menu entries.
 
-## Publish a release
-
-1. Update the version in `extension/manifest.json`.
-2. Commit and push the change.
-3. Create and push a tag matching that version, with a `v` prefix. For example, for version `1.4.3`:
-
-   ```sh
-   git tag v1.4.3
-   git push origin v1.4.3
-   ```
-
-4. GitHub Actions verifies the tag matches the manifest, packages the `extension` folder, and attaches the ZIP to a GitHub Release.
 
 ## Use it
 
