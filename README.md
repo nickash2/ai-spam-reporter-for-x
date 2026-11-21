@@ -2,12 +2,36 @@
 
 Report an X post to [Blocked for AI Reply](https://blockedforaireply.levels.io/) without copying or pasting a link. One click on **Report AI Post** in a post’s action row opens the project's own form with the exact post URL filled in. Review the URL and click the site's **Send report** button when ready.
 
+<table>
+  <tr>
+    <td align="center"><img src="imgs/extension_view.png" alt="Extension popup with controls and sync status" width="100%"><br><sub>Extension popup</sub></td>
+    <td align="center"><img src="imgs/X_feed_view.png" alt="Report AI Post buttons in the X feed" width="100%"><br><sub>Report from the X feed</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="imgs/report_page_autofilled.png" alt="Report form with the post link filled in" width="100%"><br><sub>Report form with the post link filled in</sub></td>
+    <td align="center"><img src="imgs/levelsblocked.png" alt="Blocked badge on an X post and a Report as AI Post button" width="100%"><br><sub>Blocked account badge and post action</sub></td>
+  </tr>
+</table>
+
 ## Install or upgrade
 
-1. Extract the ZIP.
+1. Download the extension ZIP from [GitHub Releases](https://github.com/nickash2/ai-spam-reporter-for-x/releases/latest) and extract it.
 2. In Chrome, open `chrome://extensions` and enable **Developer mode**.
 3. Pick **Load unpacked** and select the extracted `extension` folder containing `manifest.json`.
 4. Refresh any X tabs you already had open. If you installed the earlier prototype from a different folder, disable it to avoid two toolbar icons and right-click menu entries.
+
+## Publish a release
+
+1. Update the version in `extension/manifest.json`.
+2. Commit and push the change.
+3. Create and push a tag matching that version, with a `v` prefix. For example, for version `1.4.3`:
+
+   ```sh
+   git tag v1.4.3
+   git push origin v1.4.3
+   ```
+
+4. GitHub Actions verifies the tag matches the manifest, packages the `extension` folder, and attaches the ZIP to a GitHub Release.
 
 ## Use it
 

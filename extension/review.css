@@ -161,3 +161,4 @@ button:disabled { opacity: .6; cursor: default; }
 .sync-warning button { margin-top: 6px; }
 #feedback { margin-top: 9px; color: var(--muted); font-size: 11px; }
 #feedback:empty { display: none; }
+.credit { margin-top: 12px; color: var(--muted); font-size: 11px; text-align: center; }
