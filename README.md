@@ -1,29 +1,30 @@
 # AI Spam Reporter for X
 
-Report an X post to [Blocked for AI Reply](https://blockedforaireply.levels.io/) without copying or pasting a link. One click on **Report AI Post** in a post’s action row opens the project's own form with the exact post URL filled in. Review the URL and click the site's **Send report** button when ready.
+Report automated spam replies on X to [Blocked for AI Reply](https://blockedforaireply.levels.io/) without copying or pasting the post link.
 
-<table>
+**[Download the extension ZIP](https://github.com/nickash2/ai-spam-reporter-for-x/releases/latest)**
+
+<table role="presentation">
   <tr>
-    <td align="center"><img src="imgs/extension_view.png" alt="Extension popup with controls and sync status" width="100%"><br><sub>Extension popup</sub></td>
-    <td align="center"><img src="imgs/X_feed_view.png" alt="Report AI Post buttons in the X feed" width="100%"><br><sub>Report from the X feed</sub></td>
+    <td align="center" valign="top"><strong>1. Click Report AI Post</strong><br><img src="imgs/X_post_view.png" alt="Three posts in the X feed, each with a Report AI Post button" width="350"></td>
+    <td align="center" valign="top"><strong>2. Review and send</strong><br><img src="imgs/report_page_autofilled.png" alt="Report form with the post link filled in and a Send report button" width="250"></td>
   </tr>
   <tr>
-    <td align="center"><img src="imgs/report_page_autofilled.png" alt="Report form with the post link filled in" width="100%"><br><sub>Report form with the post link filled in</sub></td>
-    <td align="center"><img src="imgs/levelsblocked.png" alt="Blocked badge on an X post and a Report as AI Post button" width="100%"><br><sub>Blocked account badge and post action</sub></td>
+    <td align="center" valign="top"><strong>Blocklist badge on X</strong><br><img src="imgs/levelsblocked.png" alt="Blocked badge beside an author's name on X" width="250"></td>
+    <td align="center" valign="top"><strong>Extension popup</strong><br><img src="imgs/extension_view.png" alt="Extension popup with controls and sync status" width="250"></td>
   </tr>
 </table>
 
 ## Install or upgrade
 
-1. In the release's **Assets** section on [GitHub Releases](https://github.com/nickash2/ai-spam-reporter-for-x/releases/latest), download `ai-spam-reporter-for-x-vX.Y.Z.zip` and extract it. Do not download GitHub's **Source code (zip)** archive; that contains the full repository.
+1. Under **Assets**, download and extract the ZIP named `ai-spam-reporter-extension-vX.Y.Z.zip`, not **Source code (zip)**.
 2. In Chrome, open `chrome://extensions` and enable **Developer mode**.
 3. Pick **Load unpacked** and select the extracted `extension` folder containing `manifest.json`.
 4. Refresh any X tabs you already had open. If you installed the earlier prototype from a different folder, disable it to avoid two toolbar icons and right-click menu entries.
 
-
 ## Use it
 
-- On X, look for **Report AI Post** alongside Reply and Like. Only report posts that are examples of automated spam replies.
+- Click **Report AI Post** alongside Reply and Like. On the report page, review the prefilled link and click **Send report** when ready. Only report automated spam replies.
 - Listed accounts display a red badge reading Blocked on **blockedforaireply.levels.io** beside the author in the timeline and below the handle on the opened post. The extension does an exact, case-insensitive match and never modifies your X account.
 - If X doesn't display its usual timestamp and author layout, open the post directly and select **Open report form** in the toolbar popup. You can also right-click the post's timestamp and select **Report AI Post**.
 - Use the toolbar popup to turn inline controls off, see when the reviewed list was last updated, or refresh the list immediately.
