@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Spam Reporter for X</title>
+  <link rel="stylesheet" href="review.css">
+  <script type="module" src="review.mjs"></script>
+</head>
+<body>
+  <main>
+    <header class="brand">
+      <img src="icons/icon48.png" width="36" height="36" alt="">
+      <h1>AI Spam Reporter for X</h1>
+    </header>
+
+    <section class="card empty" id="guidance">
+      <h2>Report a post on X</h2>
+      <p>Open a post, or select <strong>Report AI Post</strong> directly on X.</p>
+    </section>
+
+    <section class="card" id="post" hidden aria-label="Selected post">
+      <div class="post-header">
+        <h2 id="handle"></h2>
+        <a id="permalink" target="_blank" rel="noreferrer">View post <span aria-hidden="true">↗</span></a>
+      </div>
+      <p id="membership" class="badge" role="status"></p>
+      <div class="actions">
+        <button id="report" type="button" class="primary">Open report form <span aria-hidden="true">↗</span></button>
+        <button id="copy" type="button" class="secondary">Copy link</button>
+      </div>
+      <p id="report-tip" class="note">Review and send on the report page.</p>
+    </section>
+
+    <section class="preferences" aria-label="X controls">
+      <label class="setting">
+        <span>Show controls on X</span>
+        <input id="inline" type="checkbox" role="switch" checked>
+      </label>
+      <p id="inline-status" class="note" role="status" hidden></p>
+    </section>
+
+    <footer class="list">
+      <div class="list-info">
+        <a href="https://blockedforaireply.levels.io/" target="_blank" rel="noreferrer">blockedforaireply.levels.io <span aria-hidden="true">↗</span></a>
+        <p id="freshness" class="note">Checking the list…</p>
+      </div>
+      <button id="refresh" type="button" class="secondary">Sync list</button>
+    </footer>
+    <div class="sync-warning" id="sync-warning" hidden>
+      <p id="sync-detail" role="status"></p>
+      <button id="accept-list" class="secondary" type="button" hidden>Use smaller list</button>
+    </div>
+    <p id="feedback" role="status"></p>
+  </main>
+</body>
+</html>

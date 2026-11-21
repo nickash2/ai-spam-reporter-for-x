@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "AI Spam Reporter for X",
+  "version": "1.4.3",
+  "description": "See which X accounts are on the Blocked for AI Reply list and open reports with the post link filled in.",
+  "minimum_chrome_version": "123",
+  "permissions": [
+    "activeTab",
+    "alarms",
+    "clipboardWrite",
+    "contextMenus",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://blockedforaireply.levels.io/*"
+  ],
+  "action": {
+    "default_title": "AI Spam Reporter for X",
+    "default_popup": "review.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.mjs",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://www.x.com/*",
+        "https://*.twitter.com/*"
+      ],
+      "js": [
+        "post-link.js",
+        "timeline.js"
+      ],
+      "css": [
+        "timeline.css"
+      ]
+    },
+    {
+      "matches": [
+        "https://blockedforaireply.levels.io/*"
+      ],
+      "js": [
+        "report-form.js"
+      ]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
