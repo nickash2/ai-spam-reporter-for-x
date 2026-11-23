@@ -37,12 +37,20 @@
         <span>Show controls on X</span>
         <input id="inline" type="checkbox" role="switch" checked>
       </label>
+      <label class="setting">
+        <span>Hide blocked accounts on X</span>
+        <input id="hide" type="checkbox" role="switch">
+      </label>
+      <label class="setting">
+        <span>Show "Previously blocked" tag</span>
+        <input id="removed-tag" type="checkbox" role="switch" checked>
+      </label>
       <p id="inline-status" class="note" role="status" hidden></p>
     </section>
 
     <footer class="list">
       <div class="list-info">
-        <a href="https://blockedforaireply.levels.io/" target="_blank" rel="noreferrer">blockedforaireply.levels.io <span aria-hidden="true">↗</span></a>
+        <a href="https://blockedforaireply.com/" target="_blank" rel="noreferrer">blockedforaireply.com <span aria-hidden="true">↗</span></a>
         <p id="freshness" class="note">Checking the list…</p>
       </div>
       <button id="refresh" type="button" class="secondary">Sync list</button>
