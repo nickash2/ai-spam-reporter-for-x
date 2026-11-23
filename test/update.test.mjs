@@ -33,6 +33,7 @@ test("manual update check forces a new check and shows the release download", as
           dataset: {},
           listeners: {},
           addEventListener(type, listener) { this.listeners[type] = listener; },
+          setAttribute(name, value) { this[name] = value; },
           removeAttribute(name) { delete this[name]; }
         });
       }

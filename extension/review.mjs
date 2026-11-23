@@ -53,7 +53,7 @@ async function checkForUpdates(force = false) {
 
   checkingUpdates = true;
   updateRefresh.disabled = true;
-  updateRefresh.textContent = "Checking…";
+  updateRefresh.setAttribute("aria-busy", "true");
   try {
     updateStatus.textContent = "Checking for updates…";
     updateStatus.hidden = false;
@@ -71,7 +71,7 @@ async function checkForUpdates(force = false) {
   } finally {
     checkingUpdates = false;
     updateRefresh.disabled = false;
-    updateRefresh.textContent = "Check for updates";
+    updateRefresh.removeAttribute("aria-busy");
   }
 }
 
