@@ -1,6 +1,6 @@
 # AI Spam Reporter for X
 
-Report automated spam replies on X to [Blocked for AI Reply](https://blockedforaireply.levels.io/) without copying or pasting the post link.
+Report automated spam replies on X to [Blocked for AI Reply](https://blockedforaireply.com/) without copying or pasting the post link.
 
 **[Download the extension ZIP](https://github.com/nickash2/ai-spam-reporter-for-x/releases/latest)**
 
