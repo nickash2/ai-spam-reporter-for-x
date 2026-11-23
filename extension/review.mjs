@@ -40,12 +40,14 @@ function showUpdate(update, message) {
   updateLink.hidden = !update;
   if (update) {
     updateLink.href = update.url;
-    updateLink.textContent = `Download v${update.version}`;
+    updateLink.textContent = `${versionLabel.textContent} -> Version ${update.version}`;
+    versionLabel.hidden = true;
   } else {
+    versionLabel.hidden = false;
     updateLink.removeAttribute("href");
   }
   updateStatus.textContent = message;
-  updateStatus.hidden = false;
+  updateStatus.hidden = !message;
 }
 
 async function checkForUpdates(force = false) {
@@ -64,7 +66,7 @@ async function checkForUpdates(force = false) {
       return;
     }
 
-    showUpdate(result.update, result.update ? "A newer version is available." : "You're up to date.");
+    showUpdate(result.update, "");
   } catch (error) {
     console.warn("Could not check for extension updates.", error);
     showUpdate(null, "Could not check for updates.");
@@ -128,7 +130,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes[CACHE_KEY] || changes[SYNC_KEY]) showList();
   if (changes[UPDATE_CACHE_KEY]) {
     const update = changes[UPDATE_CACHE_KEY].newValue?.update;
-    showUpdate(update ?? null, update ? "A newer version is available." : "You're up to date.");
+    showUpdate(update ?? null, "");
   }
   if (changes[REMOVED_TAG_KEY]) removedTag.checked = changes[REMOVED_TAG_KEY].newValue !== false;
   if (changes[HIDE_KEY]) hide.checked = changes[HIDE_KEY].newValue === true;
