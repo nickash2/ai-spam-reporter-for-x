@@ -8,6 +8,7 @@ export const UPDATE_CACHE_KEY = "extensionUpdateCheck";
 export const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 export const CACHE_KEY = "reviewedList";
 export const REMOVED_CACHE_KEY = "removedAccounts";
+export const REMOVED_SYNC_KEY = "removedAccountsSyncIssue";
 export const SYNC_KEY = "reviewedListSyncIssue";
 export const INLINE_KEY = "showInlineControls";
 export const REMOVED_TAG_KEY = "showPreviouslyBlocked";
@@ -24,6 +25,12 @@ export function parseUsernameFeed(body) {
   return [...new Set(handles.map(handle => handle.toLowerCase()))].sort();
 }
 
+function validRemovedDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 export function parseRemovedFeed(body, now = Date.now()) {
   let feed;
   try {
@@ -34,20 +41,24 @@ export function parseRemovedFeed(body, now = Date.now()) {
   if (!Array.isArray(feed?.accounts) || feed.accounts.some(account =>
     typeof account?.username !== "string" ||
     !globalThis.replyReportLinks.handlePattern.test(account.username) ||
-    typeof account.removed !== "string" ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(account.removed) ||
-    !Number.isFinite(Date.parse(account.removed))
+    !validRemovedDate(account.removed)
   )) {
     throw new Error("The server did not return valid removed-account data.");
   }
 
   const cutoff = now - REMOVED_RETENTION_MS;
-  return [...new Set(feed.accounts
-    .filter(account => {
-      const removedAt = Date.parse(account.removed);
-      return removedAt >= cutoff && removedAt <= now;
-    })
-    .map(account => account.username.toLowerCase()))].sort();
+  const recentAccounts = new Map();
+  for (const account of feed.accounts) {
+    const removedAt = Date.parse(account.removed);
+    if (removedAt < cutoff || removedAt > now) continue;
+
+    const username = account.username.toLowerCase();
+    const current = recentAccounts.get(username);
+    if (!current || account.removed > current.removed) {
+      recentAccounts.set(username, { username, removed: account.removed });
+    }
+  }
+  return [...recentAccounts.values()].sort((a, b) => a.username.localeCompare(b.username));
 }
 
 function versionParts(value) {

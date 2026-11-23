@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CACHE_KEY, FEED_URL, REMOVED_CACHE_KEY, REMOVED_FEED_URL, REPORT_URL, SYNC_KEY } from "../extension/reply.mjs";
+import {
+  CACHE_KEY, FEED_URL, REMOVED_CACHE_KEY, REMOVED_FEED_URL, REMOVED_SYNC_KEY, REPORT_URL, SYNC_KEY
+} from "../extension/reply.mjs";
 
 function event() {
   return { addListener(listener) { this.listener = listener; } };
@@ -15,8 +17,10 @@ test("worker keeps the last good list on failure and replaces it on recovery", a
   let syncIssue;
   let cache;
   let removedCache;
+  let removedSyncIssue;
   let body = "Some_User\nOther_User";
   const removedBody = JSON.stringify({ accounts: [{ username: "Earlier_User", removed: new Date().toISOString().slice(0, 10) }] });
+  let removedUnavailable = false;
   let downloads = 0;
 
   t.mock.method(globalThis, "fetch", async (url, options) => {
@@ -26,6 +30,7 @@ test("worker keeps the last good list on failure and replaces it on recovery", a
       return new Response(body);
     }
     assert.equal(url, REMOVED_FEED_URL);
+    if (removedUnavailable) return new Response("Unavailable", { status: 503 });
     return new Response(removedBody);
   });
   globalThis.chrome = {
@@ -49,10 +54,13 @@ test("worker keeps the last good list on failure and replaces it on recovery", a
     },
     storage: {
       local: {
-        get: async () => ({ [CACHE_KEY]: cache, [REMOVED_CACHE_KEY]: removedCache, [SYNC_KEY]: syncIssue }),
+        get: async () => ({
+          [CACHE_KEY]: cache, [REMOVED_CACHE_KEY]: removedCache, [REMOVED_SYNC_KEY]: removedSyncIssue, [SYNC_KEY]: syncIssue
+        }),
         set: async values => {
           if (CACHE_KEY in values) cache = values[CACHE_KEY];
           if (REMOVED_CACHE_KEY in values) removedCache = values[REMOVED_CACHE_KEY];
+          if (REMOVED_SYNC_KEY in values) removedSyncIssue = values[REMOVED_SYNC_KEY];
           if (SYNC_KEY in values) syncIssue = values[SYNC_KEY];
         }
       },
@@ -74,12 +82,19 @@ test("worker keeps the last good list on failure and replaces it on recovery", a
   const refresh = () => send({ type: "refresh-list" });
   const postUrl = "https://x.com/Some_User/status/222";
 
-  assert.deepEqual(await Promise.all([refresh(), refresh()]), [{ ok: true }, { ok: true }]);
+  assert.deepEqual(await Promise.all([refresh(), refresh()]), [
+    { ok: true, removedOk: true }, { ok: true, removedOk: true }
+  ]);
   assert.equal(downloads, 1);
   assert.deepEqual(cache.handles, ["other_user", "some_user"]);
   assert.deepEqual(removedCache.handles, ["earlier_user"]);
+  assert.equal(removedCache.removedAt.earlier_user, JSON.parse(removedBody).accounts[0].removed);
+  assert.equal(removedSyncIssue, null);
   const firstCache = cache;
-  assert.equal((await send({ type: "open-report", url: postUrl })).ok, false);
+  assert.deepEqual(await send({ type: "open-report", url: postUrl }), {
+    ok: false,
+    error: "This account is already on the blocklist."
+  });
   assert.deepEqual(opened, []);
 
   body = "<html>Unavailable</html>";
@@ -89,11 +104,11 @@ test("worker keeps the last good list on failure and replaces it on recovery", a
 
   const fullList = Array.from({ length: 110 }, (_, i) => `account_${i}`);
   body = fullList.join("\n");
-  assert.deepEqual(await refresh(), { ok: true });
+  assert.deepEqual(await refresh(), { ok: true, removedOk: true });
   assert.equal(syncIssue, null);
 
   body = "Truncated_User";
-  assert.deepEqual(await refresh(), { ok: false, reason: "drop" });
+  assert.deepEqual(await refresh(), { ok: false, reason: "drop", removedOk: true });
   assert.equal(cache.handles.length, 110);
   assert.equal(syncIssue.count, 1);
 
@@ -101,11 +116,20 @@ test("worker keeps the last good list on failure and replaces it on recovery", a
   const confirmDrop = digest => send({ type: "accept-list-drop", digest }, review);
   const firstDigest = syncIssue.digest;
   body = "Other_User";
-  assert.deepEqual(await confirmDrop(firstDigest), { ok: false, reason: "drop" });
+  assert.deepEqual(await confirmDrop(firstDigest), { ok: false, reason: "drop", removedOk: true });
   assert.equal(cache.handles.length, 110);
-  assert.deepEqual(await confirmDrop(syncIssue.digest), { ok: true });
-  assert.deepEqual(await refresh(), { ok: true });
+  assert.deepEqual(await confirmDrop(syncIssue.digest), { ok: true, removedOk: true });
+  assert.deepEqual(await refresh(), { ok: true, removedOk: true });
   assert.deepEqual(cache.handles, ["other_user"]);
+
+  const lastRemovedCache = removedCache;
+  removedUnavailable = true;
+  assert.deepEqual(await refresh(), { ok: true, removedOk: false });
+  assert.equal(removedCache, lastRemovedCache);
+  assert.equal(removedSyncIssue.type, "failed");
+  removedUnavailable = false;
+  assert.deepEqual(await refresh(), { ok: true, removedOk: true });
+  assert.equal(removedSyncIssue, null);
 
   onClicked.listener({
     menuItemId: "review-reply-link",
@@ -144,7 +168,17 @@ test("review action opens the selected permalink after a list removal and offers
   globalThis.chrome = {
     storage: {
       onChanged: changes,
-      local: { get: async () => ({ [CACHE_KEY]: { handles: ["some_user"], updatedAt: Date.now() } }) }
+      local: {
+        get: async () => ({
+          [CACHE_KEY]: { handles: ["some_user"], updatedAt: Date.now() },
+          [REMOVED_CACHE_KEY]: {
+            handles: ["former_user"],
+            removedAt: { former_user: "2026-11-20" },
+            updatedAt: Date.now() - 60_000
+          },
+          [REMOVED_SYNC_KEY]: { type: "failed" }
+        })
+      }
     },
     runtime: { sendMessage: async message => { opened.push(message); return { ok: true }; } }
   };
@@ -152,6 +186,8 @@ test("review action opens the selected permalink after a list removal and offers
 
   assert.equal(controls["#handle"].textContent, "@Some_User");
   assert.equal(controls["#report"].disabled, true);
+  assert.match(controls["#removed-freshness"].textContent, /sync failed; last synced/);
+  assert.equal(controls["#removed-freshness"].dataset.state, "failed");
   await controls["#report"].listener();
   assert.deepEqual(opened, []);
 
@@ -163,6 +199,14 @@ test("review action opens the selected permalink after a list removal and offers
   assert.equal(controls["#sync-warning"].hidden, false);
   changes.listener({ [SYNC_KEY]: { newValue: null } }, "local");
   assert.equal(controls["#sync-warning"].hidden, true);
+  changes.listener({
+    [REMOVED_SYNC_KEY]: { newValue: null },
+    [REMOVED_CACHE_KEY]: {
+      newValue: { handles: ["former_user"], removedAt: { former_user: "2026-11-20" }, updatedAt: Date.now() }
+    }
+  }, "local");
+  assert.match(controls["#removed-freshness"].textContent, /Previously blocked: Synced/);
+  assert.equal(controls["#removed-freshness"].dataset.state, "");
   await controls["#report"].listener();
   assert.deepEqual(opened, [{ type: "open-report", url: postUrl }]);
   await controls["#copy"].listener();

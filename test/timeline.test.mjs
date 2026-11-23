@@ -1,0 +1,230 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import "../extension/reply.mjs";
+
+test("previously blocked accounts keep the report action while blocklisted accounts do not", async t => {
+  const globalNames = ["chrome", "document", "location", "MutationObserver", "requestAnimationFrame", "window"];
+  const previousGlobals = new Map(globalNames.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+  t.after(() => {
+    for (const [name, descriptor] of previousGlobals) {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else delete globalThis[name];
+    }
+  });
+
+  const cardSelector = 'article[data-testid="tweet"]';
+  const groupSelector = '[role="group"]';
+  let card;
+  let group;
+  let header;
+  let anchors;
+
+  class Element {
+    constructor(name) {
+      this.name = name;
+      this.children = [];
+      this.listeners = {};
+      this.classes = new Set();
+      this.classList = {
+        toggle: (className, enabled) => enabled ? this.classes.add(className) : this.classes.delete(className),
+        contains: className => this.classes.has(className)
+      };
+      this.hidden = false;
+      this.isConnected = true;
+      this.parentElement = null;
+    }
+
+    append(...children) {
+      if (children.length) this._textContent = undefined;
+      for (const child of children) {
+        if (typeof child === "string") {
+          this.children.push(child);
+          continue;
+        }
+        child.parentElement?.removeChild(child);
+        child.parentElement = this;
+        this.children.push(child);
+      }
+    }
+
+    replaceChildren(...children) {
+      this.children = [];
+      this._textContent = undefined;
+      this.append(...children);
+    }
+
+    addEventListener(type, listener) {
+      this.listeners[type] = listener;
+    }
+
+    setAttribute(name, value) {
+      this[name] = value;
+    }
+
+    toggleAttribute(name, enabled) {
+      this[name] = enabled;
+    }
+
+    closest(selector) {
+      if (selector === cardSelector) return card;
+      if (selector === groupSelector) return group;
+      return null;
+    }
+
+    contains(element) {
+      return this === element || this.children.includes(element);
+    }
+
+    querySelector(selector) {
+      return this.name === "post-link" && selector === "time" ? new Element("time") : null;
+    }
+
+    querySelectorAll(selector) {
+      if (this === card && selector === '[data-testid="User-Name"]') return [header];
+      if (this === card && selector === groupSelector) return [group];
+      if (this === header && selector === "a[href]") return anchors;
+      if (this === group && selector === '[data-testid="reply"], [data-testid="like"], [data-testid="unlike"]') {
+        return [new Element("reply-action")];
+      }
+      return [];
+    }
+
+    get nextElementSibling() {
+      if (!this.parentElement) return null;
+      const siblings = this.parentElement.children;
+      return siblings[siblings.indexOf(this) + 1] ?? null;
+    }
+
+    after(element) {
+      element.parentElement?.removeChild(element);
+      const siblings = this.parentElement.children;
+      const index = siblings.indexOf(this);
+      element.parentElement = this.parentElement;
+      siblings.splice(index + 1, 0, element);
+    }
+
+    remove() {
+      if (this.parentElement) {
+        this.parentElement.children = this.parentElement.children.filter(child => child !== this);
+        this.parentElement = null;
+      }
+    }
+
+    removeChild(element) {
+      this.children = this.children.filter(child => child !== element);
+      element.parentElement = null;
+    }
+
+    set className(value) {
+      this._className = value;
+      this.classes = new Set(value.split(/\s+/).filter(Boolean));
+    }
+
+    get className() {
+      return this._className;
+    }
+
+    get textContent() {
+      return this._textContent ?? this.children.map(child =>
+        typeof child === "string" ? child : child.textContent
+      ).join("");
+    }
+
+    set textContent(value) {
+      this._textContent = String(value);
+      this.children = [];
+    }
+  }
+
+  card = new Element("tweet-card");
+  group = new Element("action-row");
+  header = new Element("author-header");
+  const profileLink = new Element("profile-link");
+  Object.assign(profileLink, {
+    origin: "https://x.com",
+    pathname: "/Former_User",
+    textContent: "@Former_User",
+    href: "https://x.com/Former_User"
+  });
+  const postLink = new Element("post-link");
+  Object.assign(postLink, {
+    origin: "https://x.com",
+    pathname: "/Former_User/status/123",
+    textContent: "",
+    href: "https://x.com/Former_User/status/123"
+  });
+  anchors = [profileLink, postLink];
+  header.append(...anchors);
+
+  const listeners = {};
+  const stored = {
+    reviewedList: { handles: [] },
+    removedAccounts: { handles: ["former_user"], removedAt: { former_user: "2026-11-20" } },
+    showInlineControls: true,
+    hideBlockedAccounts: false,
+    showPreviouslyBlocked: true
+  };
+  globalThis.window = { matchMedia: () => ({ matches: false, addEventListener() {} }) };
+  globalThis.location = { href: "https://x.com/home", origin: "https://x.com" };
+  globalThis.requestAnimationFrame = callback => setTimeout(callback, 0);
+  globalThis.MutationObserver = class {
+    constructor() {}
+    observe() {}
+  };
+  globalThis.document = {
+    body: new Element("body"),
+    createElement: name => new Element(name),
+    querySelectorAll: selector => selector === cardSelector ? [card] : []
+  };
+  globalThis.chrome = {
+    runtime: {
+      id: "test-extension",
+      onMessage: { addListener(listener) { listeners.message = listener; } },
+      sendMessage: async () => ({ ok: true })
+    },
+    storage: {
+      local: { get: async () => stored },
+      onChanged: { addListener(listener) { listeners.changed = listener; } }
+    }
+  };
+
+  await import("../extension/timeline.js");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  const wrapper = group.children.find(element => element.classList.contains("rrx-inline"));
+  const badgeWrapper = header.children.find(element =>
+    element.classList.contains("rrx-inline") && element.classList.contains("rrx-listed")
+  );
+  const [reportButton] = wrapper.children;
+  const [badge] = badgeWrapper.children;
+
+  assert.equal(reportButton.hidden, false);
+  assert.match(badge.textContent, /Previously blocked · Removed/);
+  assert.equal(wrapper.parentElement, group);
+  assert.equal(badgeWrapper.parentElement, header);
+
+  listeners.changed({
+    removedAccounts: { newValue: { handles: [], removedAt: {} } }
+  }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(reportButton.hidden, false);
+  assert.equal(badgeWrapper.parentElement, null);
+
+  listeners.changed({
+    removedAccounts: {
+      newValue: { handles: ["former_user"], removedAt: { former_user: "2026-11-20" } }
+    }
+  }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(reportButton.hidden, false);
+  assert.equal(badgeWrapper.parentElement, header);
+
+  listeners.changed({ reviewedList: { newValue: { handles: ["former_user"] } } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(reportButton.hidden, true);
+  assert.equal(badge.textContent, "Blocked on blockedforaireply.com");
+
+  listeners.changed({ reviewedList: { newValue: { handles: [] } } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(reportButton.hidden, false);
+  assert.match(badge.textContent, /Previously blocked · Removed/);
+});

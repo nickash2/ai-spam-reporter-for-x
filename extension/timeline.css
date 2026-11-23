@@ -9,11 +9,12 @@
 
 .rrx-inline button {
   appearance: none;
-  border: 1px solid currentColor;
+  border: 1px solid #1478c8;
   border-radius: 999px;
   padding: 2px 6px;
-  background: transparent;
-  color: rgb(29, 155, 240);
+  min-height: 24px;
+  background: #1478c8;
+  color: #fff;
   font: inherit;
 }
 
@@ -22,7 +23,8 @@
 }
 
 .rrx-inline button:hover {
-  background: rgba(29, 155, 240, .14);
+  border-color: #1274c4;
+  background: #1274c4;
 }
 
 .rrx-inline.rrx-in-action-row {
@@ -42,6 +44,8 @@
   min-width: 0;
   max-width: 100%;
   vertical-align: middle;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .rrx-inline.rrx-under-author {
@@ -83,7 +87,7 @@
 }
 
 .rrx-inline button:focus-visible {
-  outline: 2px solid currentColor;
+  outline: 2px solid #1478c8;
   outline-offset: 2px;
 }
 
@@ -109,6 +113,13 @@
 
 .rrx-inline .rrx-tag-removed::before {
   background: #8b98a5;
+}
+
+@media (pointer: coarse) {
+  .rrx-inline button {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 [data-rrx-hidden],

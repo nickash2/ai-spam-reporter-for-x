@@ -15,6 +15,7 @@ test("manual update check forces a new check and shows the release download", as
     [SYNC_KEY]: null
   };
   const messages = [];
+  let failUpdateCheck = false;
   const release = {
     tag_name: "v1.5.0",
     assets: [{
@@ -45,6 +46,7 @@ test("manual update check forces a new check and shows the release download", as
       getManifest: () => ({ version: "1.4.4" }),
       sendMessage: async message => {
         messages.push(message);
+        if (failUpdateCheck) return { ok: false, update: null };
         return message.force
           ? { ok: true, update: { version: "1.5.0", url: release.assets[0].browser_download_url } }
           : { ok: true, update: null };
@@ -67,7 +69,7 @@ test("manual update check forces a new check and shows the release download", as
   assert.equal(elements.get("#version-label").textContent, "Version 1.4.4");
   assert.equal(elements.get("#version-label").hidden, false);
   assert.equal(elements.get("#update-link").hidden, true);
-  assert.equal(elements.has("#update-status"), false);
+  assert.equal(elements.get("#update-status").hidden, true);
 
   await elements.get("#update-refresh").listeners.click();
   assert.deepEqual(messages[1], { type: "check-updates", force: true });
@@ -75,4 +77,11 @@ test("manual update check forces a new check and shows the release download", as
   assert.equal(elements.get("#update-link").hidden, false);
   assert.equal(elements.get("#update-link").textContent, "Version 1.4.4 -> Version 1.5.0");
   assert.equal(elements.get("#update-link").href, release.assets[0].browser_download_url);
+  assert.equal(elements.get("#update-status").hidden, true);
+
+  failUpdateCheck = true;
+  await elements.get("#update-refresh").listeners.click();
+  assert.equal(elements.get("#update-link").hidden, false);
+  assert.equal(elements.get("#update-status").hidden, false);
+  assert.equal(elements.get("#update-status").textContent, "Could not check for updates. Showing the last known download.");
 });

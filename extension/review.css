@@ -6,6 +6,7 @@
   --text: light-dark(#181b28, #f4f5fc);
   --muted: light-dark(#535b6e, #a8afc2);
   --line: light-dark(#dce0eb, #303545);
+  --control-line: light-dark(#7f8ba2, #65718a);
   --accent: light-dark(#4338ca, #aeafff);
   --primary: light-dark(#4940d6, #b6b9ff);
   --primary-ink: light-dark(#fff, #16153b);
@@ -35,7 +36,7 @@ main { padding: 16px; }
 
 .brand img { border-radius: 10px; }
 h1, h2, p { margin: 0; }
-h1 { font-size: 20px; letter-spacing: -.045em; }
+h1 { min-width: 0; font-size: 20px; letter-spacing: -.045em; overflow-wrap: anywhere; }
 h2 { font-size: 16px; letter-spacing: -.02em; overflow-wrap: anywhere; }
 
 .card {
@@ -87,7 +88,7 @@ a:hover { text-decoration: underline; }
 .actions { display: flex; gap: 7px; margin-top: 12px; }
 
 button {
-  min-height: 34px;
+  min-height: 40px;
   padding: 5px 10px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -101,7 +102,7 @@ button {
 .primary { flex: 1; background: var(--primary); color: var(--primary-ink); }
 .primary span { margin-left: 3px; }
 .primary:hover { filter: brightness(.92); }
-.secondary { background: transparent; border-color: var(--line); color: var(--text); }
+.secondary { background: transparent; border: 1px solid var(--control-line); color: var(--text); }
 .secondary:hover { background: var(--soft); }
 button:disabled { opacity: .6; cursor: default; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
@@ -112,7 +113,9 @@ button:disabled { opacity: .6; cursor: default; }
 .preferences { padding: 13px 1px 12px; }
 
 .setting {
+  min-height: 44px;
   padding: 4px 0;
+  font-size: 15px;
   font-weight: 650;
   cursor: pointer;
 }
@@ -124,7 +127,7 @@ button:disabled { opacity: .6; cursor: default; }
   height: 19px;
   margin: 0;
   flex: none;
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-line);
   border-radius: 999px;
   background: var(--surface);
   color: var(--muted);
@@ -145,12 +148,16 @@ button:disabled { opacity: .6; cursor: default; }
 
 .setting input:checked::before { left: 17px; }
 
+.setting-group { padding: 4px 0; }
+.setting-group .setting { padding: 0; }
+.setting-help { margin-top: 2px; padding-right: 42px; }
 #inline-status { margin-top: 3px; }
 
 .list { border-top: 1px solid var(--line); padding-top: 11px; }
 .list-info { min-width: 0; }
 .list a { font-size: 11px; font-weight: 650; overflow-wrap: anywhere; }
 .list .note { margin-top: 2px; }
+.list .note[data-state="failed"] { color: var(--danger-ink); }
 .sync-warning {
   margin-top: 8px;
   padding: 8px;
@@ -170,6 +177,13 @@ button:disabled { opacity: .6; cursor: default; }
   margin-top: 12px;
   padding-top: 8px;
   border-top: 1px solid var(--line);
+}
+.app-footer #update-status {
+  grid-column: 1 / -1;
+  justify-self: end;
+  max-width: 100%;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 .version-info {
   grid-column: 2;
@@ -195,5 +209,9 @@ button:disabled { opacity: .6; cursor: default; }
 @keyframes update-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .version-info button[aria-busy="true"] svg { animation: none; }
+}
+@media (pointer: coarse) {
+  button { min-height: 44px; }
+  .version-info button { width: 44px; min-height: 44px; }
 }
 .credit { grid-column: 1; justify-self: start; color: var(--muted); font-size: 11px; }

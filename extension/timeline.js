@@ -9,7 +9,7 @@
   const dirtyCards = new Set();
   const narrowLayout = window.matchMedia("(max-width: 640px)");
   let reviewed = new Set();
-  let removed = new Set();
+  let removed = new Map();
   let enabled = true;
   let hideBlocked = false;
   let showRemoved = true;
@@ -55,6 +55,8 @@
   function createControl(card) {
     const wrapper = document.createElement("span");
     wrapper.className = "rrx-inline";
+    const badgeWrapper = document.createElement("span");
+    badgeWrapper.className = "rrx-inline rrx-listed";
     const button = document.createElement("button");
     button.type = "button";
     const label = document.createElement("span");
@@ -68,9 +70,10 @@
     error.setAttribute("role", "status");
     error.className = "rrx-error";
     error.hidden = true;
-    wrapper.append(button, label, error);
+    wrapper.append(button, error);
+    badgeWrapper.append(label);
 
-    const control = { wrapper, button, label, text, source, error, opening: false, url: "" };
+    const control = { wrapper, badgeWrapper, button, label, text, source, error, opening: false, url: "" };
     wrapper.addEventListener("pointerdown", event => event.stopPropagation());
     wrapper.addEventListener("click", event => event.stopPropagation());
     button.addEventListener("click", async event => {
@@ -111,8 +114,8 @@
     const hidden = hideBlocked && blocked && !selection.isOpenPost;
     card.toggleAttribute("data-rrx-hidden", hidden);
     const former = Boolean(selection && showRemoved && !blocked && removed.has(key));
-    const listed = blocked || former;
-    if (!enabled || hidden || (!selection?.post && !listed)) {
+    const tagged = blocked || former;
+    if (!enabled || hidden || (!selection?.post && !tagged)) {
       control?.wrapper.remove();
       controls.delete(card);
       return;
@@ -130,27 +133,54 @@
       control.error.hidden = true;
       control.button.setAttribute("aria-label", `Report AI Post by @${handle} to Blocked for AI Reply`);
     }
-    control.label.title = former ? `@${handle} was removed from the list` : `@${handle} is on the reviewed list`;
-    control.text.replaceChildren(...(former ? ["Previously blocked"] : ["Blocked on ", control.source]));
+    const removedDate = removed.get(key);
+    const formattedRemovedDate = removedDate
+      ? new Date(`${removedDate}T00:00:00`).toLocaleDateString(undefined, {
+        month: "short", day: "numeric", year: "numeric"
+      })
+      : null;
+    const removedLabel = `Previously blocked${formattedRemovedDate ? ` · Removed ${formattedRemovedDate}` : ""}`;
+    control.label.title = former
+      ? `@${handle} was removed from the list${formattedRemovedDate ? ` on ${formattedRemovedDate}` : ""}`
+      : `@${handle} is on the blocklist`;
+    control.text.replaceChildren(...(former ? [removedLabel] : ["Blocked on ", control.source]));
     control.label.classList.toggle("rrx-tag-removed", former);
 
-    control.button.hidden = listed;
+    control.button.hidden = blocked || !post;
     const buttonText = narrowLayout.matches ? "Report" : "Report AI Post";
     if (control.button.textContent !== buttonText) control.button.textContent = buttonText;
-    control.label.hidden = !listed;
-    control.wrapper.classList.toggle("rrx-listed", Boolean(listed));
-    const badgeBelow = listed && (showBadgesBelow || narrowLayout.matches);
-    control.wrapper.classList.toggle("rrx-under-author", Boolean(badgeBelow));
-    if (listed) control.error.hidden = true;
+    control.label.hidden = !tagged;
+    control.badgeWrapper.hidden = !tagged;
+    const badgeBelow = tagged && (showBadgesBelow || narrowLayout.matches);
+    control.badgeWrapper.classList.toggle("rrx-under-author", Boolean(badgeBelow));
+    if (blocked) control.error.hidden = true;
 
-    const actionRow = listed ? null : findActionRow(card);
+    const actionRow = blocked ? null : findActionRow(card);
     control.wrapper.classList.toggle("rrx-in-action-row", Boolean(actionRow));
+    if (!tagged) {
+      control.badgeWrapper.remove();
+    } else if (badgeBelow) {
+      if (control.badgeWrapper.parentElement !== header) header.append(control.badgeWrapper);
+    } else {
+      const anchor = timestamp && header.contains(timestamp) ? timestamp : header;
+      if (anchor.nextElementSibling !== control.badgeWrapper) anchor.after(control.badgeWrapper);
+    }
+
     if (badgeBelow) {
-      if (control.wrapper.parentElement !== header) header.append(control.wrapper);
+      if (actionRow) {
+        if (control.wrapper.parentElement !== actionRow) actionRow.append(control.wrapper);
+      } else {
+        const anchor = control.badgeWrapper.parentElement === header
+          ? control.badgeWrapper
+          : timestamp && header.contains(timestamp) ? timestamp : header;
+        if (anchor.nextElementSibling !== control.wrapper) anchor.after(control.wrapper);
+      }
     } else if (actionRow) {
       if (control.wrapper.parentElement !== actionRow) actionRow.append(control.wrapper);
     } else {
-      const anchor = timestamp && header.contains(timestamp) ? timestamp : header;
+      const anchor = tagged && control.badgeWrapper.parentElement === header
+        ? control.badgeWrapper
+        : timestamp && header.contains(timestamp) ? timestamp : header;
       if (anchor.nextElementSibling !== control.wrapper) anchor.after(control.wrapper);
     }
   }
@@ -181,7 +211,10 @@
 
   chrome.storage.local.get(["reviewedList", removedCacheKey, "showInlineControls", "hideBlockedAccounts", "showPreviouslyBlocked"]).then(values => {
     reviewed = new Set(values.reviewedList?.handles ?? []);
-    removed = new Set(values[removedCacheKey]?.handles ?? []);
+    removed = new Map((values[removedCacheKey]?.handles ?? []).map(handle => [
+      handle,
+      values[removedCacheKey]?.removedAt?.[handle]
+    ]));
     enabled = values.showInlineControls !== false;
     hideBlocked = values.hideBlockedAccounts === true;
     showRemoved = values.showPreviouslyBlocked !== false;
@@ -193,7 +226,10 @@
       if (changes.reviewedList) {
         reviewed = new Set(changes.reviewedList.newValue?.handles ?? []);
       }
-      if (changes[removedCacheKey]) removed = new Set(changes[removedCacheKey].newValue?.handles ?? []);
+      if (changes[removedCacheKey]) {
+        const cache = changes[removedCacheKey].newValue;
+        removed = new Map((cache?.handles ?? []).map(handle => [handle, cache?.removedAt?.[handle]]));
+      }
       if (changes.showPreviouslyBlocked) showRemoved = changes.showPreviouslyBlocked.newValue !== false;
       if (changes.hideBlockedAccounts) hideBlocked = changes.hideBlockedAccounts.newValue === true;
       if (changes.showInlineControls) enabled = changes.showInlineControls.newValue !== false;

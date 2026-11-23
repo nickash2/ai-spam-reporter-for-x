@@ -1,5 +1,5 @@
 import {
-  CACHE_KEY, FEED_URL, RELEASES_API_URL, REMOVED_CACHE_KEY, REMOVED_FEED_URL, REPORT_URL, SYNC_KEY,
+  CACHE_KEY, FEED_URL, RELEASES_API_URL, REMOVED_CACHE_KEY, REMOVED_FEED_URL, REMOVED_SYNC_KEY, REPORT_URL, SYNC_KEY,
   UPDATE_CACHE_KEY, UPDATE_CHECK_INTERVAL_MS, findNewerRelease, parsePostLink, parseRemovedFeed, parseUsernameFeed
 } from "./reply.mjs";
 
@@ -33,19 +33,17 @@ function refreshList(approvedDigest) {
           await chrome.storage.local.set({
             [SYNC_KEY]: { type: "drop", previousCount, count: handles.length, digest }
           });
-          await removedRefresh;
-          return { ok: false, reason: "drop" };
+          return { ok: false, reason: "drop", removedOk: await removedRefresh };
         }
       }
 
       const now = Date.now();
       await chrome.storage.local.set({ [CACHE_KEY]: { handles, updatedAt: now }, [SYNC_KEY]: null });
-      await removedRefresh;
-      return { ok: true };
+      return { ok: true, removedOk: await removedRefresh };
     } catch {
-      await removedRefresh;
+      const removedOk = await removedRefresh;
       await chrome.storage.local.set({ [SYNC_KEY]: { type: "failed" } });
-      return { ok: false, reason: "failed" };
+      return { ok: false, reason: "failed", removedOk };
     }
   })().finally(() => {
     pendingRefresh = undefined;
@@ -64,10 +62,22 @@ async function refreshRemovedAccounts() {
     });
     if (!response.ok) throw new Error(`Download failed (HTTP ${response.status}).`);
 
-    const handles = parseRemovedFeed(await response.text());
-    await chrome.storage.local.set({ [REMOVED_CACHE_KEY]: { handles, updatedAt: Date.now() } });
+    const accounts = parseRemovedFeed(await response.text());
+    const handles = accounts.map(account => account.username);
+    const removedAt = Object.fromEntries(accounts.map(account => [account.username, account.removed]));
+    await chrome.storage.local.set({
+      [REMOVED_CACHE_KEY]: { handles, removedAt, updatedAt: Date.now() },
+      [REMOVED_SYNC_KEY]: null
+    });
+    return true;
   } catch (error) {
     console.warn("Could not refresh the removed-account list.", error);
+    try {
+      await chrome.storage.local.set({ [REMOVED_SYNC_KEY]: { type: "failed", attemptedAt: Date.now() } });
+    } catch (storageError) {
+      console.warn("Could not save removed-account sync status.", storageError);
+    }
+    return false;
   }
 }
 
@@ -175,10 +185,14 @@ chrome.alarms.onAlarm.addListener(async alarm => {
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  const stored = await chrome.storage.local.get(CACHE_KEY);
-  const age = Date.now() - (stored[CACHE_KEY]?.updatedAt ?? 0);
+  const stored = await chrome.storage.local.get([CACHE_KEY, REMOVED_CACHE_KEY, REMOVED_SYNC_KEY]);
+  const now = Date.now();
+  const age = now - (stored[CACHE_KEY]?.updatedAt ?? 0);
+  const removedAge = now - (stored[REMOVED_CACHE_KEY]?.updatedAt ?? 0);
+  const needsRefresh = age >= refreshPeriodMinutes * 60_000 ||
+    removedAge >= refreshPeriodMinutes * 60_000 || stored[REMOVED_SYNC_KEY]?.type === "failed";
   await Promise.all([
-    age >= refreshPeriodMinutes * 60_000 ? refreshList().catch(console.warn) : Promise.resolve(),
+    needsRefresh ? refreshList().catch(console.warn) : Promise.resolve(),
     checkForUpdates().catch(console.warn)
   ]);
 });
@@ -216,7 +230,7 @@ async function openReport(value) {
 
   const stored = await chrome.storage.local.get(CACHE_KEY);
   if (stored[CACHE_KEY]?.handles.includes(post.handle.toLowerCase())) {
-    return { ok: false, error: "This account is already on the reviewed list." };
+    return { ok: false, error: "This account is already on the blocklist." };
   }
 
   const tab = await chrome.tabs.create({ url: "about:blank", active: false });

@@ -1,5 +1,6 @@
 import {
-  CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_TAG_KEY, SYNC_KEY, UPDATE_CACHE_KEY, parsePostLink
+  CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_CACHE_KEY, REMOVED_SYNC_KEY, REMOVED_TAG_KEY, SYNC_KEY,
+  UPDATE_CACHE_KEY, parsePostLink
 } from "./reply.mjs";
 
 const guidance = document.querySelector("#guidance");
@@ -16,6 +17,7 @@ const removedTag = document.querySelector("#removed-tag");
 const inlineStatus = document.querySelector("#inline-status");
 const refresh = document.querySelector("#refresh");
 const freshness = document.querySelector("#freshness");
+const removedFreshness = document.querySelector("#removed-freshness");
 const feedback = document.querySelector("#feedback");
 const syncWarning = document.querySelector("#sync-warning");
 const syncDetail = document.querySelector("#sync-detail");
@@ -23,6 +25,7 @@ const acceptList = document.querySelector("#accept-list");
 const versionLabel = document.querySelector("#version-label");
 const updateLink = document.querySelector("#update-link");
 const updateRefresh = document.querySelector("#update-refresh");
+const updateStatus = document.querySelector("#update-status");
 
 const draft = new URL(window.location.href).searchParams;
 const [activeTab] = draft.has("post") ? [] : await chrome.tabs.query({ active: true, currentWindow: true });
@@ -32,10 +35,14 @@ const onX = /^https:\/\/(?:www\.)?x\.com\/|^https:\/\/(?:[^./]+\.)?twitter\.com\
 let openingReport = false;
 let alreadyListed = false;
 let cache;
+let removedCache;
 let syncIssue;
+let removedSyncIssue;
 let checkingUpdates = false;
+let currentUpdate = null;
 
 function showUpdate(update) {
+  currentUpdate = update ?? null;
   updateLink.hidden = !update;
   if (update) {
     updateLink.href = update.url;
@@ -47,6 +54,11 @@ function showUpdate(update) {
   }
 }
 
+function showUpdateError(message = "") {
+  updateStatus.textContent = message;
+  updateStatus.hidden = !message;
+}
+
 async function checkForUpdates(force = false) {
   if (checkingUpdates) return;
 
@@ -56,14 +68,22 @@ async function checkForUpdates(force = false) {
   try {
     const result = await chrome.runtime.sendMessage({ type: "check-updates", force });
     if (!result?.ok) {
-      showUpdate(result?.update ?? null);
+      const lastKnownUpdate = result?.update ?? currentUpdate;
+      showUpdate(lastKnownUpdate);
+      showUpdateError(lastKnownUpdate
+        ? "Could not check for updates. Showing the last known download."
+        : "Could not check for updates. Try again.");
       return;
     }
 
     showUpdate(result.update);
+    showUpdateError();
   } catch (error) {
     console.warn("Could not check for extension updates.", error);
-    showUpdate(null);
+    showUpdate(currentUpdate);
+    showUpdateError(currentUpdate
+      ? "Could not check for updates. Showing the last known download."
+      : "Could not check for updates. Try again.");
   } finally {
     checkingUpdates = false;
     updateRefresh.disabled = false;
@@ -76,7 +96,6 @@ function syncLabel(timestamp) {
   const date = new Date(timestamp);
   if (!Number.isFinite(date.getTime())) return "Sync time unavailable";
 
-  freshness.title = date.toLocaleString();
   if (now - date >= 0 && now - date < 60_000) return "Synced just now";
   const time = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   if (now.toDateString() === date.toDateString()) return `Synced today at ${time}`;
@@ -106,8 +125,14 @@ function showList() {
   report.hidden = listed;
   reportTip.hidden = listed;
   report.disabled = alreadyListed || openingReport;
-  freshness.title = "";
-  freshness.textContent = cache ? syncLabel(cache.updatedAt) : "Sync needed";
+  freshness.title = cache ? new Date(cache.updatedAt).toLocaleString() : "";
+  freshness.textContent = `Blocklist: ${cache ? syncLabel(cache.updatedAt) : "not synced yet"}`;
+  const removedMessage = removedSyncIssue?.type === "failed"
+    ? removedCache ? `sync failed; last synced ${syncLabel(removedCache.updatedAt)}` : "sync failed"
+    : removedCache ? syncLabel(removedCache.updatedAt) : "not synced yet";
+  removedFreshness.textContent = `Previously blocked: ${removedMessage}`;
+  removedFreshness.dataset.state = removedSyncIssue?.type === "failed" ? "failed" : "";
+  removedFreshness.title = removedCache ? new Date(removedCache.updatedAt).toLocaleString() : "";
   syncWarning.hidden = !syncIssue;
   acceptList.hidden = syncIssue?.type !== "drop";
   if (syncIssue?.type === "drop") {
@@ -120,11 +145,14 @@ function showList() {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
   if (changes[CACHE_KEY]) cache = changes[CACHE_KEY].newValue;
+  if (changes[REMOVED_CACHE_KEY]) removedCache = changes[REMOVED_CACHE_KEY].newValue;
   if (changes[SYNC_KEY]) syncIssue = changes[SYNC_KEY].newValue;
-  if (changes[CACHE_KEY] || changes[SYNC_KEY]) showList();
+  if (changes[REMOVED_SYNC_KEY]) removedSyncIssue = changes[REMOVED_SYNC_KEY].newValue;
+  if (changes[CACHE_KEY] || changes[REMOVED_CACHE_KEY] || changes[SYNC_KEY] || changes[REMOVED_SYNC_KEY]) showList();
   if (changes[UPDATE_CACHE_KEY]) {
     const update = changes[UPDATE_CACHE_KEY].newValue?.update;
-    showUpdate(update ?? null, update ? "A newer version is available." : "You're up to date.");
+    showUpdate(update ?? null);
+    showUpdateError();
   }
   if (changes[REMOVED_TAG_KEY]) removedTag.checked = changes[REMOVED_TAG_KEY].newValue !== false;
   if (changes[HIDE_KEY]) hide.checked = changes[HIDE_KEY].newValue === true;
@@ -211,13 +239,23 @@ removedTag.addEventListener("change", async () => {
 async function requestRefresh(digest) {
   refresh.disabled = true;
   acceptList.disabled = true;
-  feedback.textContent = "Syncing the blocklist…";
+  feedback.textContent = "Syncing both lists…";
   try {
     const result = await chrome.runtime.sendMessage(digest
       ? { type: "accept-list-drop", digest }
       : { type: "refresh-list" });
     if (!result?.ok && !result?.reason) throw new Error("Refresh failed.");
-    feedback.textContent = result.ok ? "Blocklist synced." : "";
+    if (result.reason === "drop") {
+      feedback.textContent = "";
+    } else if (result.ok && result.removedOk) {
+      feedback.textContent = "Both lists synced.";
+    } else if (result.ok) {
+      feedback.textContent = "Blocklist synced; previously blocked list sync failed.";
+    } else if (result.removedOk) {
+      feedback.textContent = "Blocklist sync failed; previously blocked list synced.";
+    } else {
+      feedback.textContent = "Both lists failed to sync.";
+    }
   } catch {
     feedback.textContent = "Sync failed. Try again in a moment.";
   } finally {
@@ -230,11 +268,15 @@ refresh.addEventListener("click", () => requestRefresh());
 acceptList.addEventListener("click", () => {
   if (syncIssue?.type === "drop") requestRefresh(syncIssue.digest);
 });
-const stored = await chrome.storage.local.get([CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_TAG_KEY, SYNC_KEY]);
+const stored = await chrome.storage.local.get([
+  CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_CACHE_KEY, REMOVED_SYNC_KEY, REMOVED_TAG_KEY, SYNC_KEY
+]);
 removedTag.checked = stored[REMOVED_TAG_KEY] !== false;
 inline.checked = stored[INLINE_KEY] !== false;
 hide.checked = stored[HIDE_KEY] === true;
 cache = stored[CACHE_KEY];
+removedCache = stored[REMOVED_CACHE_KEY];
+removedSyncIssue = stored[REMOVED_SYNC_KEY];
 syncIssue = stored[SYNC_KEY];
 showList();
 showInlineStatus();

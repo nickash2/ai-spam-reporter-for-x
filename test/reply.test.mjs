@@ -47,11 +47,16 @@ test("parses recent removed accounts independently of the active username list",
       { username: "Expired", removed: new Date(now - REMOVED_RETENTION_MS - 86_400_000).toISOString().slice(0, 10) },
       { username: "recent_removed", removed: "2026-11-22" }
     ]
-  }), now), ["recent_removed"]);
+  }), now), [{ username: "recent_removed", removed: "2026-11-22" }]);
 });
 
 test("rejects invalid removed-account data", () => {
-  for (const body of ["<html>Unavailable</html>", "{}", '{"accounts":[{"username":"@invalid","removed":"2026-11-21"}]}']) {
+  for (const body of [
+    "<html>Unavailable</html>",
+    "{}",
+    '{"accounts":[{"username":"@invalid","removed":"2026-11-21"}]}',
+    '{"accounts":[{"username":"invalid","removed":"2026-02-30"}]}'
+  ]) {
     assert.throws(() => parseRemovedFeed(body), /valid removed-account data/);
   }
 });
