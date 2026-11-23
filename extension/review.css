@@ -112,11 +112,12 @@ button:disabled { opacity: .6; cursor: default; }
 .preferences { padding: 13px 1px 12px; }
 
 .setting {
+  padding: 4px 0;
   font-weight: 650;
   cursor: pointer;
 }
 
-#inline {
+.setting input {
   appearance: none;
   position: relative;
   width: 33px;
@@ -130,9 +131,9 @@ button:disabled { opacity: .6; cursor: default; }
   cursor: inherit;
 }
 
-#inline:checked { background: var(--primary); color: var(--primary-ink); }
+.setting input:checked { background: var(--primary); color: var(--primary-ink); }
 
-#inline::before {
+.setting input::before {
   content: "";
   position: absolute;
   inset: 3px auto auto 3px;
@@ -142,7 +143,7 @@ button:disabled { opacity: .6; cursor: default; }
   background: currentColor;
 }
 
-#inline:checked::before { left: 17px; }
+.setting input:checked::before { left: 17px; }
 
 #inline-status { margin-top: 3px; }
 
