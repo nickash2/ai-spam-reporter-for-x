@@ -179,8 +179,6 @@ button:disabled { opacity: .6; cursor: default; }
   gap: 6px;
 }
 .version-info #version-label { white-space: nowrap; }
-.version-info #update-link { color: var(--danger-ink); font-size: 11px; font-weight: 650; white-space: nowrap; }
-.version-info #update-link:hover { text-decoration: underline; }
 .version-info button {
   display: grid;
   width: 30px;
@@ -192,8 +190,9 @@ button:disabled { opacity: .6; cursor: default; }
 .version-info button:hover { color: var(--text); }
 .version-info button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .version-info button[aria-busy="true"] svg { animation: update-spin 900ms linear infinite; }
-.app-footer #update-status { grid-column: 1 / -1; }
+.app-footer #update-status, .app-footer #update-link { grid-column: 1 / -1; }
 .app-footer #update-status { text-align: right; }
+.app-footer #update-link { justify-self: end; font-size: 11px; font-weight: 650; }
 @keyframes update-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .version-info button[aria-busy="true"] svg { animation: none; }
