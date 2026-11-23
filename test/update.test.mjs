@@ -31,6 +31,7 @@ test("manual update check forces a new check and shows the release download", as
       if (!elements.has(selector)) {
         elements.set(selector, {
           dataset: {},
+          hidden: false,
           listeners: {},
           addEventListener(type, listener) { this.listeners[type] = listener; },
           setAttribute(name, value) { this[name] = value; },
@@ -65,11 +66,14 @@ test("manual update check forces a new check and shows the release download", as
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.deepEqual(messages, [{ type: "check-updates", force: false }]);
   assert.equal(elements.get("#version-label").textContent, "Version 1.4.4");
-  assert.equal(elements.get("#update-status").textContent, "You're up to date.");
+  assert.equal(elements.get("#version-label").hidden, false);
+  assert.equal(elements.get("#update-link").hidden, true);
+  assert.equal(elements.get("#update-status").hidden, true);
 
   await elements.get("#update-refresh").listeners.click();
   assert.deepEqual(messages[1], { type: "check-updates", force: true });
+  assert.equal(elements.get("#version-label").hidden, true);
   assert.equal(elements.get("#update-link").hidden, false);
-  assert.equal(elements.get("#update-link").textContent, "Download v1.5.0");
+  assert.equal(elements.get("#update-link").textContent, "Version 1.4.4 -> Version 1.5.0");
   assert.equal(elements.get("#update-link").href, release.assets[0].browser_download_url);
 });
