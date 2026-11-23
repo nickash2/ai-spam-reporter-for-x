@@ -21,7 +21,6 @@ const syncWarning = document.querySelector("#sync-warning");
 const syncDetail = document.querySelector("#sync-detail");
 const acceptList = document.querySelector("#accept-list");
 const versionLabel = document.querySelector("#version-label");
-const updateStatus = document.querySelector("#update-status");
 const updateLink = document.querySelector("#update-link");
 const updateRefresh = document.querySelector("#update-refresh");
 
@@ -36,16 +35,16 @@ let cache;
 let syncIssue;
 let checkingUpdates = false;
 
-function showUpdate(update, message) {
+function showUpdate(update) {
   updateLink.hidden = !update;
   if (update) {
     updateLink.href = update.url;
-    updateLink.textContent = `Download v${update.version}`;
+    updateLink.textContent = `${versionLabel.textContent} -> Version ${update.version}`;
+    versionLabel.hidden = true;
   } else {
+    versionLabel.hidden = false;
     updateLink.removeAttribute("href");
   }
-  updateStatus.textContent = message;
-  updateStatus.hidden = false;
 }
 
 async function checkForUpdates(force = false) {
@@ -55,19 +54,16 @@ async function checkForUpdates(force = false) {
   updateRefresh.disabled = true;
   updateRefresh.setAttribute("aria-busy", "true");
   try {
-    updateStatus.textContent = "Checking for updates…";
-    updateStatus.hidden = false;
     const result = await chrome.runtime.sendMessage({ type: "check-updates", force });
     if (!result?.ok) {
-      showUpdate(result?.update ?? null,
-        result?.update ? "Update check unavailable; showing the last check." : "Could not check for updates.");
+      showUpdate(result?.update ?? null);
       return;
     }
 
-    showUpdate(result.update, result.update ? "A newer version is available." : "You're up to date.");
+    showUpdate(result.update);
   } catch (error) {
     console.warn("Could not check for extension updates.", error);
-    showUpdate(null, "Could not check for updates.");
+    showUpdate(null);
   } finally {
     checkingUpdates = false;
     updateRefresh.disabled = false;
