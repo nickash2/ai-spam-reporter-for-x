@@ -19,10 +19,6 @@ Report automated spam replies on X to [Blocked for AI Reply](https://blockedfora
 </table>
 
 ## Install or upgrade
-<p align="center">
-  <img src="imgs/chrome_extension_page.png" alt="Google Chrome Extensions Page" width="820"><br>
-  <strong>Chrome Extensions Page</strong>
-</p>
 
 1. Under **Assets**, download and extract the ZIP named `ai-spam-reporter-extension-vX.Y.Z.zip`, not **Source code (zip)**.
 2. In Chrome, open `chrome://extensions` and enable **Developer mode**.
