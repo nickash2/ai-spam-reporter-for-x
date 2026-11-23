@@ -162,4 +162,7 @@ button:disabled { opacity: .6; cursor: default; }
 .sync-warning button { margin-top: 6px; }
 #feedback { margin-top: 9px; color: var(--muted); font-size: 11px; }
 #feedback:empty { display: none; }
+.version-info { margin-top: 12px; text-align: center; }
+.version-info a { display: inline-block; margin-top: 3px; font-size: 11px; font-weight: 650; }
+.version-info #update-status { margin-top: 3px; }
 .credit { margin-top: 12px; color: var(--muted); font-size: 11px; text-align: center; }

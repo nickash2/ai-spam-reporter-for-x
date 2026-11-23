@@ -13,6 +13,9 @@ Report automated spam replies on X to [Blocked for AI Reply](https://blockedfora
     <td align="center" valign="top"><strong>Blocklist badge on X</strong><br><img src="imgs/levelsblocked.png" alt="Blocked badge beside an author's name on X" width="620"></td>
     <td align="center" valign="top"><strong>Extension popup</strong><br><img src="imgs/extension_view.png" alt="Extension popup with controls and sync status" width="487"></td>
   </tr>
+  <tr>
+    <td align="center" valign="top" colspan="2"><strong>Previously blocked badge on X (visible for 30 days)</strong><br><img src="imgs/levelsunblocked.png" alt="Example of a Previously blocked badge beside an author's name on X" width="620"></td>
+  </tr>
 </table>
 
 ## Install or upgrade

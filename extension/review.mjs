@@ -1,4 +1,7 @@
-import { CACHE_KEY, HIDE_KEY, REMOVED_TAG_KEY, INLINE_KEY, SYNC_KEY, parsePostLink } from "./reply.mjs";
+import {
+  CACHE_KEY, HIDE_KEY, INLINE_KEY, RELEASES_API_URL, REMOVED_TAG_KEY, SYNC_KEY,
+  UPDATE_CACHE_KEY, UPDATE_CHECK_INTERVAL_MS, findNewerRelease, parsePostLink
+} from "./reply.mjs";
 
 const guidance = document.querySelector("#guidance");
 const postSection = document.querySelector("#post");
@@ -18,6 +21,9 @@ const feedback = document.querySelector("#feedback");
 const syncWarning = document.querySelector("#sync-warning");
 const syncDetail = document.querySelector("#sync-detail");
 const acceptList = document.querySelector("#accept-list");
+const versionLabel = document.querySelector("#version-label");
+const updateStatus = document.querySelector("#update-status");
+const updateLink = document.querySelector("#update-link");
 
 const draft = new URL(window.location.href).searchParams;
 const [activeTab] = draft.has("post") ? [] : await chrome.tabs.query({ active: true, currentWindow: true });
@@ -28,6 +34,74 @@ let openingReport = false;
 let alreadyListed = false;
 let cache;
 let syncIssue;
+
+function showUpdate(update, message) {
+  updateLink.hidden = !update;
+  if (update) {
+    updateLink.href = update.url;
+    updateLink.textContent = `Download v${update.version}`;
+  } else {
+    updateLink.removeAttribute("href");
+  }
+  updateStatus.textContent = message;
+  updateStatus.hidden = false;
+}
+
+function isValidUpdateCache(value, installedVersion) {
+  if (value?.installedVersion !== installedVersion || !Number.isFinite(value.checkedAt) ||
+      value.checkedAt > Date.now() || !("update" in value)) return false;
+  if (value.update === null) return true;
+  if (typeof value.update?.version !== "string" || typeof value.update.url !== "string") return false;
+  try {
+    const url = new URL(value.update.url);
+    return url.origin === "https://github.com" && url.pathname.startsWith("/nickash2/ai-spam-reporter-for-x/releases/download/");
+  } catch {
+    return false;
+  }
+}
+
+async function checkForUpdates(installedVersion) {
+  let stored;
+  try {
+    stored = await chrome.storage.local.get(UPDATE_CACHE_KEY);
+  } catch (error) {
+    console.warn("Could not read cached release information.", error);
+  }
+
+  const cached = stored?.[UPDATE_CACHE_KEY];
+  const cacheValid = isValidUpdateCache(cached, installedVersion);
+  if (cacheValid) {
+    showUpdate(cached.update, cached.update ? "A newer version is available." : "You're up to date.");
+    if (Date.now() - cached.checkedAt < UPDATE_CHECK_INTERVAL_MS) return;
+  }
+
+  updateStatus.textContent = "Checking for updates…";
+  updateStatus.hidden = false;
+  try {
+    const response = await fetch(RELEASES_API_URL, {
+      cache: "no-cache",
+      credentials: "omit",
+      headers: { Accept: "application/vnd.github+json" },
+      redirect: "error",
+      signal: AbortSignal.timeout(8_000)
+    });
+    if (!response.ok) throw new Error(`GitHub update check failed (HTTP ${response.status}).`);
+
+    const update = findNewerRelease(await response.json(), installedVersion);
+    showUpdate(update, update ? "A newer version is available." : "You're up to date.");
+    try {
+      await chrome.storage.local.set({
+        [UPDATE_CACHE_KEY]: { checkedAt: Date.now(), installedVersion, update }
+      });
+    } catch (error) {
+      console.warn("Could not cache GitHub release information.", error);
+    }
+  } catch (error) {
+    console.warn("Could not check for extension updates.", error);
+    showUpdate(cacheValid ? cached.update : null,
+      cacheValid ? "Update check unavailable; showing the last check." : "Could not check for updates.");
+  }
+}
 
 function syncLabel(timestamp) {
   const now = new Date();
@@ -96,6 +170,10 @@ if (post) {
 } else if (draft.has("post")) {
   guidance.querySelector("p").textContent = "Open the post itself, then choose Report AI Post.";
 }
+
+const installedVersion = chrome.runtime.getManifest?.().version;
+versionLabel.textContent = installedVersion ? `Version ${installedVersion}` : "Version unavailable";
+if (installedVersion) checkForUpdates(installedVersion);
 
 report.addEventListener("click", async () => {
   if (!post || report.disabled) return;
