@@ -1,4 +1,4 @@
-import { CACHE_KEY, INLINE_KEY, SYNC_KEY, parsePostLink } from "./reply.mjs";
+import { CACHE_KEY, HIDE_KEY, REMOVED_TAG_KEY, INLINE_KEY, SYNC_KEY, parsePostLink } from "./reply.mjs";
 
 const guidance = document.querySelector("#guidance");
 const postSection = document.querySelector("#post");
@@ -9,6 +9,8 @@ const report = document.querySelector("#report");
 const reportTip = document.querySelector("#report-tip");
 const copy = document.querySelector("#copy");
 const inline = document.querySelector("#inline");
+const hide = document.querySelector("#hide");
+const removedTag = document.querySelector("#removed-tag");
 const inlineStatus = document.querySelector("#inline-status");
 const refresh = document.querySelector("#refresh");
 const freshness = document.querySelector("#freshness");
@@ -41,12 +43,12 @@ function syncLabel(timestamp) {
 
 async function showInlineStatus() {
   inlineStatus.hidden = true;
-  if (!inline.checked || !onX || !Number.isInteger(activeTab.id)) return;
+  if ((!inline.checked && !hide.checked) || !onX || !Number.isInteger(activeTab.id)) return;
   try {
     await chrome.tabs.sendMessage(activeTab.id, { type: "inline-status" });
   } catch {
-    if (!inline.checked) return;
-    inlineStatus.textContent = "Reload X to show controls. If they’re still missing, check AI Spam Reporter for X’s site access.";
+    if (!inline.checked && !hide.checked) return;
+    inlineStatus.textContent = "Reload X to apply these settings. If they’re still missing, check AI Spam Reporter for X’s site access.";
     inlineStatus.hidden = false;
   }
 }
@@ -78,6 +80,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes[CACHE_KEY]) cache = changes[CACHE_KEY].newValue;
   if (changes[SYNC_KEY]) syncIssue = changes[SYNC_KEY].newValue;
   if (changes[CACHE_KEY] || changes[SYNC_KEY]) showList();
+  if (changes[REMOVED_TAG_KEY]) removedTag.checked = changes[REMOVED_TAG_KEY].newValue !== false;
+  if (changes[HIDE_KEY]) hide.checked = changes[HIDE_KEY].newValue === true;
   if (changes[INLINE_KEY]) {
     inline.checked = changes[INLINE_KEY].newValue !== false;
     showInlineStatus();
@@ -131,6 +135,25 @@ inline.addEventListener("change", async () => {
   }
 });
 
+hide.addEventListener("change", async () => {
+  try {
+    await chrome.storage.local.set({ [HIDE_KEY]: hide.checked });
+    showInlineStatus();
+  } catch {
+    hide.checked = !hide.checked;
+    feedback.textContent = "Could not save the setting.";
+  }
+});
+
+removedTag.addEventListener("change", async () => {
+  try {
+    await chrome.storage.local.set({ [REMOVED_TAG_KEY]: removedTag.checked });
+  } catch {
+    removedTag.checked = !removedTag.checked;
+    feedback.textContent = "Could not save the setting.";
+  }
+});
+
 async function requestRefresh(digest) {
   refresh.disabled = true;
   acceptList.disabled = true;
@@ -153,8 +176,10 @@ refresh.addEventListener("click", () => requestRefresh());
 acceptList.addEventListener("click", () => {
   if (syncIssue?.type === "drop") requestRefresh(syncIssue.digest);
 });
-const stored = await chrome.storage.local.get([CACHE_KEY, INLINE_KEY, SYNC_KEY]);
+const stored = await chrome.storage.local.get([CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_TAG_KEY, SYNC_KEY]);
+removedTag.checked = stored[REMOVED_TAG_KEY] !== false;
 inline.checked = stored[INLINE_KEY] !== false;
+hide.checked = stored[HIDE_KEY] === true;
 cache = stored[CACHE_KEY];
 syncIssue = stored[SYNC_KEY];
 showList();

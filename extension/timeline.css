@@ -100,3 +100,18 @@
   color: inherit;
   white-space: normal;
 }
+
+.rrx-inline .rrx-tag-status.rrx-tag-removed {
+  border-color: #536471;
+  background: #2f3336;
+  color: #e7e9ea;
+}
+
+.rrx-inline .rrx-tag-removed::before {
+  background: #8b98a5;
+}
+
+[data-rrx-hidden],
+[data-testid="cellInnerDiv"]:has(> [data-rrx-hidden]) {
+  display: none !important;
+}

@@ -1,4 +1,4 @@
-import { CACHE_KEY, FEED_URL, REPORT_URL, SYNC_KEY, parsePostLink, parseUsernameFeed } from "./reply.mjs";
+import { CACHE_KEY, REMOVED_RETENTION_MS, FEED_URL, REPORT_URL, SYNC_KEY, parsePostLink, parseUsernameFeed } from "./reply.mjs";
 
 const refreshAlarm = "refresh-reviewed-list";
 const reportMenu = "review-reply-link";
@@ -32,7 +32,14 @@ function refreshList(approvedDigest) {
         }
       }
 
-      await chrome.storage.local.set({ [CACHE_KEY]: { handles, updatedAt: Date.now() }, [SYNC_KEY]: null });
+      const now = Date.now();
+      const current = new Set(handles);
+      const removed = {};
+      for (const [name, since] of Object.entries(stored[CACHE_KEY]?.removed ?? {})) {
+        if (!current.has(name) && now - since < REMOVED_RETENTION_MS) removed[name] = since;
+      }
+      for (const name of stored[CACHE_KEY]?.handles ?? []) if (!current.has(name)) removed[name] ??= now;
+      await chrome.storage.local.set({ [CACHE_KEY]: { handles, removed, updatedAt: now }, [SYNC_KEY]: null });
       return { ok: true };
     } catch {
       await chrome.storage.local.set({ [SYNC_KEY]: { type: "failed" } });
