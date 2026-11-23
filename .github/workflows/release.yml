@@ -60,6 +60,7 @@ jobs:
             gh release create "$TAG_NAME" "$archive" \
               --title "$TAG_NAME" \
               --generate-notes
+          fi
 
   auto-patch-release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -108,4 +109,3 @@ jobs:
           gh release create "$tag" "$archive" \
             --title "$tag" \
             --generate-notes
-          fi
