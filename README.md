@@ -40,6 +40,8 @@ The service worker downloads the public username feed and the site's removed-acc
 
 The post link stays available to the report tab until it closes, so reloading the form can restore it. The report page confirms the link once it fills the field and offers **Copy link** for recovery if the form changes. Only the site's own **Send report** button submits it. The extension does not send reply text, screenshots, account credentials, or analytics.
 
+See [PRIVACY.md](PRIVACY.md) for details about accessed information, local storage, external services, and report submission.
+
 ## Run the checks
 
 From the extracted project directory, use Node.js 22 or newer.

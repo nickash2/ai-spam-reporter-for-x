@@ -93,9 +93,18 @@ jobs:
       - name: Bump patch version and publish release
         env:
           GH_TOKEN: ${{ github.token }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
         run: |
           git fetch origin main --tags
           git checkout -B main origin/main
+
+          changed_extension_files="$(git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" -- extension/)"
+          if [ -z "$changed_extension_files" ]; then
+            echo "No extension package files changed; skipping the automatic release."
+            exit 0
+          fi
+          echo "Extension package files changed; continuing with the release."
 
           version="$(jq -er '.version | select(type == "string")' extension/manifest.json)"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
