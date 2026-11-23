@@ -8,7 +8,10 @@
   const dirtyCards = new Set();
   const narrowLayout = window.matchMedia("(max-width: 640px)");
   let reviewed = new Set();
+  let removed = new Set();
   let enabled = true;
+  let hideBlocked = false;
+  let showRemoved = true;
   let frame = 0;
 
   function belongsToPost(element, card) {
@@ -30,7 +33,7 @@
     const isOpenPost = Boolean(post && pagePost && post.url.toLowerCase() === pagePost.url.toLowerCase());
     const profileLinks = candidates.filter(link => link.origin === location.origin);
     if (post && profileLinks.some(link => link.pathname.toLowerCase() === `/${post.handle.toLowerCase()}`)) {
-      return { post, handle: post.handle, header, timestamp, showBadgesBelow: isOpenPost };
+      return { post, handle: post.handle, header, timestamp, isOpenPost, showBadgesBelow: isOpenPost };
     }
 
     const usernameLink = profileLinks.find(link => {
@@ -57,7 +60,7 @@
     label.className = "rrx-tag rrx-tag-status";
     const text = document.createElement("span");
     const source = document.createElement("strong");
-    source.textContent = "blockedforaireply.levels.io";
+    source.textContent = "blockedforaireply.com";
     text.append("Blocked on ", source);
     label.append(text);
     const error = document.createElement("span");
@@ -66,7 +69,7 @@
     error.hidden = true;
     wrapper.append(button, label, error);
 
-    const control = { wrapper, button, label, error, opening: false, url: "" };
+    const control = { wrapper, button, label, text, source, error, opening: false, url: "" };
     wrapper.addEventListener("pointerdown", event => event.stopPropagation());
     wrapper.addEventListener("click", event => event.stopPropagation());
     button.addEventListener("click", async event => {
@@ -101,9 +104,14 @@
 
   function updateCard(card) {
     let control = controls.get(card);
-    const selection = enabled && card.isConnected ? selectPost(card) : null;
-    const listed = selection && reviewed.has(selection.handle.toLowerCase());
-    if (!selection?.post && !listed) {
+    const selection = (enabled || hideBlocked) && card.isConnected ? selectPost(card) : null;
+    const key = selection?.handle.toLowerCase();
+    const blocked = Boolean(selection && reviewed.has(key));
+    const hidden = hideBlocked && blocked && !selection.isOpenPost;
+    card.toggleAttribute("data-rrx-hidden", hidden);
+    const former = Boolean(selection && showRemoved && !blocked && removed.has(key));
+    const listed = blocked || former;
+    if (!enabled || hidden || (!selection?.post && !listed)) {
       control?.wrapper.remove();
       controls.delete(card);
       return;
@@ -120,8 +128,10 @@
       control.handle = handle;
       control.error.hidden = true;
       control.button.setAttribute("aria-label", `Report AI Post by @${handle} to Blocked for AI Reply`);
-      control.label.title = `@${handle} is on the reviewed list`;
     }
+    control.label.title = former ? `@${handle} was removed from the list` : `@${handle} is on the reviewed list`;
+    control.text.replaceChildren(...(former ? ["Previously blocked"] : ["Blocked on ", control.source]));
+    control.label.classList.toggle("rrx-tag-removed", former);
 
     control.button.hidden = listed;
     const buttonText = narrowLayout.matches ? "Report" : "Report AI Post";
@@ -168,21 +178,29 @@
     });
   });
 
-  chrome.storage.local.get(["reviewedList", "showInlineControls"]).then(values => {
+  chrome.storage.local.get(["reviewedList", "showInlineControls", "hideBlockedAccounts", "showPreviouslyBlocked"]).then(values => {
     reviewed = new Set(values.reviewedList?.handles ?? []);
+    removed = new Set(Object.keys(values.reviewedList?.removed ?? {}));
     enabled = values.showInlineControls !== false;
+    hideBlocked = values.hideBlockedAccounts === true;
+    showRemoved = values.showPreviouslyBlocked !== false;
     queueAll();
     narrowLayout.addEventListener("change", queueAll);
 
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "local") return;
-      if (changes.reviewedList) reviewed = new Set(changes.reviewedList.newValue?.handles ?? []);
+      if (changes.reviewedList) {
+        reviewed = new Set(changes.reviewedList.newValue?.handles ?? []);
+        removed = new Set(Object.keys(changes.reviewedList.newValue?.removed ?? {}));
+      }
+      if (changes.showPreviouslyBlocked) showRemoved = changes.showPreviouslyBlocked.newValue !== false;
+      if (changes.hideBlockedAccounts) hideBlocked = changes.hideBlockedAccounts.newValue === true;
       if (changes.showInlineControls) enabled = changes.showInlineControls.newValue !== false;
-      if (changes.reviewedList || changes.showInlineControls) queueAll();
+      if (changes.reviewedList || changes.showInlineControls || changes.hideBlockedAccounts || changes.showPreviouslyBlocked) queueAll();
     });
 
     new MutationObserver(records => {
-      if (!enabled) return;
+      if (!enabled && !hideBlocked) return;
       for (const change of records) {
         if (change.target.closest(".rrx-inline")) continue;
         if (change.type === "childList" && !change.removedNodes.length &&
