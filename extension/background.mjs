@@ -1,4 +1,7 @@
-import { CACHE_KEY, REMOVED_RETENTION_MS, FEED_URL, REPORT_URL, SYNC_KEY, parsePostLink, parseUsernameFeed } from "./reply.mjs";
+import {
+  CACHE_KEY, FEED_URL, REMOVED_CACHE_KEY, REMOVED_FEED_URL, REPORT_URL, SYNC_KEY,
+  parsePostLink, parseRemovedFeed, parseUsernameFeed
+} from "./reply.mjs";
 
 const refreshAlarm = "refresh-reviewed-list";
 const reportMenu = "review-reply-link";
@@ -9,6 +12,7 @@ function refreshList(approvedDigest) {
   if (pendingRefresh) return pendingRefresh;
 
   pendingRefresh = (async () => {
+    const removedRefresh = refreshRemovedAccounts();
     try {
       const response = await fetch(FEED_URL, {
         cache: "no-cache",
@@ -28,20 +32,17 @@ function refreshList(approvedDigest) {
           await chrome.storage.local.set({
             [SYNC_KEY]: { type: "drop", previousCount, count: handles.length, digest }
           });
+          await removedRefresh;
           return { ok: false, reason: "drop" };
         }
       }
 
       const now = Date.now();
-      const current = new Set(handles);
-      const removed = {};
-      for (const [name, since] of Object.entries(stored[CACHE_KEY]?.removed ?? {})) {
-        if (!current.has(name) && now - since < REMOVED_RETENTION_MS) removed[name] = since;
-      }
-      for (const name of stored[CACHE_KEY]?.handles ?? []) if (!current.has(name)) removed[name] ??= now;
-      await chrome.storage.local.set({ [CACHE_KEY]: { handles, removed, updatedAt: now }, [SYNC_KEY]: null });
+      await chrome.storage.local.set({ [CACHE_KEY]: { handles, updatedAt: now }, [SYNC_KEY]: null });
+      await removedRefresh;
       return { ok: true };
     } catch {
+      await removedRefresh;
       await chrome.storage.local.set({ [SYNC_KEY]: { type: "failed" } });
       return { ok: false, reason: "failed" };
     }
@@ -50,6 +51,23 @@ function refreshList(approvedDigest) {
   });
 
   return pendingRefresh;
+}
+
+async function refreshRemovedAccounts() {
+  try {
+    const response = await fetch(REMOVED_FEED_URL, {
+      cache: "no-cache",
+      credentials: "omit",
+      redirect: "error",
+      signal: AbortSignal.timeout(12_000)
+    });
+    if (!response.ok) throw new Error(`Download failed (HTTP ${response.status}).`);
+
+    const handles = parseRemovedFeed(await response.text());
+    await chrome.storage.local.set({ [REMOVED_CACHE_KEY]: { handles, updatedAt: Date.now() } });
+  } catch (error) {
+    console.warn("Could not refresh the removed-account list.", error);
+  }
 }
 
 async function prepareSchedule() {

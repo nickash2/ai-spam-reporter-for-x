@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CACHE_KEY, FEED_URL, REPORT_URL, SYNC_KEY } from "../extension/reply.mjs";
+import { CACHE_KEY, FEED_URL, REMOVED_CACHE_KEY, REMOVED_FEED_URL, REPORT_URL, SYNC_KEY } from "../extension/reply.mjs";
 
 function event() {
   return { addListener(listener) { this.listener = listener; } };
@@ -14,14 +14,19 @@ test("worker keeps the last good list on failure and replaces it on recovery", a
   const onRemoved = event();
   let syncIssue;
   let cache;
+  let removedCache;
   let body = "Some_User\nOther_User";
+  const removedBody = JSON.stringify({ accounts: [{ username: "Earlier_User", removed: new Date().toISOString().slice(0, 10) }] });
   let downloads = 0;
 
   t.mock.method(globalThis, "fetch", async (url, options) => {
-    assert.equal(url, FEED_URL);
     assert.equal(options.credentials, "omit");
-    downloads++;
-    return new Response(body);
+    if (url === FEED_URL) {
+      downloads++;
+      return new Response(body);
+    }
+    assert.equal(url, REMOVED_FEED_URL);
+    return new Response(removedBody);
   });
   globalThis.chrome = {
     alarms: { get: async () => ({ name: "existing" }), onAlarm: event() },
@@ -44,9 +49,10 @@ test("worker keeps the last good list on failure and replaces it on recovery", a
     },
     storage: {
       local: {
-        get: async () => ({ [CACHE_KEY]: cache, [SYNC_KEY]: syncIssue }),
+        get: async () => ({ [CACHE_KEY]: cache, [REMOVED_CACHE_KEY]: removedCache, [SYNC_KEY]: syncIssue }),
         set: async values => {
           if (CACHE_KEY in values) cache = values[CACHE_KEY];
+          if (REMOVED_CACHE_KEY in values) removedCache = values[REMOVED_CACHE_KEY];
           if (SYNC_KEY in values) syncIssue = values[SYNC_KEY];
         }
       },
@@ -71,6 +77,7 @@ test("worker keeps the last good list on failure and replaces it on recovery", a
   assert.deepEqual(await Promise.all([refresh(), refresh()]), [{ ok: true }, { ok: true }]);
   assert.equal(downloads, 1);
   assert.deepEqual(cache.handles, ["other_user", "some_user"]);
+  assert.deepEqual(removedCache.handles, ["earlier_user"]);
   const firstCache = cache;
   assert.equal((await send({ type: "open-report", url: postUrl })).ok, false);
   assert.deepEqual(opened, []);

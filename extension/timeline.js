@@ -1,5 +1,6 @@
 (() => {
   const { parsePostLink, handlePattern } = globalThis.replyReportLinks;
+  const removedCacheKey = "removedAccounts";
   const cardSelector = 'article[data-testid="tweet"]';
   const headerSelector = '[data-testid="User-Name"]';
   // X marks regular username and timestamp anchors with role="link" too.
@@ -178,9 +179,9 @@
     });
   });
 
-  chrome.storage.local.get(["reviewedList", "showInlineControls", "hideBlockedAccounts", "showPreviouslyBlocked"]).then(values => {
+  chrome.storage.local.get(["reviewedList", removedCacheKey, "showInlineControls", "hideBlockedAccounts", "showPreviouslyBlocked"]).then(values => {
     reviewed = new Set(values.reviewedList?.handles ?? []);
-    removed = new Set(Object.keys(values.reviewedList?.removed ?? {}));
+    removed = new Set(values[removedCacheKey]?.handles ?? []);
     enabled = values.showInlineControls !== false;
     hideBlocked = values.hideBlockedAccounts === true;
     showRemoved = values.showPreviouslyBlocked !== false;
@@ -191,12 +192,12 @@
       if (area !== "local") return;
       if (changes.reviewedList) {
         reviewed = new Set(changes.reviewedList.newValue?.handles ?? []);
-        removed = new Set(Object.keys(changes.reviewedList.newValue?.removed ?? {}));
       }
+      if (changes[removedCacheKey]) removed = new Set(changes[removedCacheKey].newValue?.handles ?? []);
       if (changes.showPreviouslyBlocked) showRemoved = changes.showPreviouslyBlocked.newValue !== false;
       if (changes.hideBlockedAccounts) hideBlocked = changes.hideBlockedAccounts.newValue === true;
       if (changes.showInlineControls) enabled = changes.showInlineControls.newValue !== false;
-      if (changes.reviewedList || changes.showInlineControls || changes.hideBlockedAccounts || changes.showPreviouslyBlocked) queueAll();
+      if (changes.reviewedList || changes[removedCacheKey] || changes.showInlineControls || changes.hideBlockedAccounts || changes.showPreviouslyBlocked) queueAll();
     });
 
     new MutationObserver(records => {

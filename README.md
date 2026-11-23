@@ -28,12 +28,12 @@ Report automated spam replies on X to [Blocked for AI Reply](https://blockedfora
 - Listed accounts display a red badge reading Blocked on **blockedforaireply.com** beside the author in the timeline and below the handle on the opened post. The extension does an exact, case-insensitive match and never modifies your X account.
 - If X doesn't display its usual timestamp and author layout, open the post directly and select **Open report form** in the toolbar popup. You can also right-click the post's timestamp and select **Report AI Post**.
 - To keep listed accounts out of your feed without blocking each one individually on X, turn on **Hide blocked accounts** in the popup. This hides their feed posts; a post you open directly stays visible.
-- Accounts that were on the list but have since been removed show a gray **Previously blocked** badge for 30 days (switch it off with **Show "Previously blocked" tag**), based on the changes between your syncs.
+- Accounts in the site's removed-account feed show a gray **Previously blocked** badge for 30 days (switch it off with **Show "Previously blocked" tag**).
 - Use the toolbar popup to turn inline controls off, see when the reviewed list was last updated, or refresh the list immediately.
 
 ## Data and integration
 
-The service worker downloads the public username feed on installation and approximately hourly while Chrome is running. It replaces the snapshot on success, including removals, and preserves the last valid snapshot if a refresh fails.
+The service worker downloads the public username feed and the site's removed-account feed on installation and approximately hourly while Chrome is running. It replaces each snapshot on success and preserves the last valid snapshot if a refresh fails.
 
 The post link stays available to the report tab until it closes, so reloading the form can restore it. The report page confirms the link once it fills the field and offers **Copy link** for recovery if the form changes. Only the site's own **Send report** button submits it. The extension does not send reply text, screenshots, account credentials, or analytics.
 
