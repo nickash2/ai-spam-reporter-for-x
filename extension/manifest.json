@@ -12,7 +12,7 @@
     "storage"
   ],
   "host_permissions": [
-    "https://blockedforaireply.levels.io/*"
+    "https://blockedforaireply.com/*"
   ],
   "action": {
     "default_title": "AI Spam Reporter for X",
@@ -44,7 +44,7 @@
     },
     {
       "matches": [
-        "https://blockedforaireply.levels.io/*"
+        "https://blockedforaireply.com/*"
       ],
       "js": [
         "report-form.js"
