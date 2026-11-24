@@ -1,6 +1,6 @@
 import {
   CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_CACHE_KEY, REMOVED_SYNC_KEY, REMOVED_TAG_KEY, REPORTER_KEY, SYNC_KEY,
-  UPDATE_CACHE_KEY, normalizeReporter, parsePostLink
+  normalizeReporter, parsePostLink
 } from "./reply.mjs";
 
 const guidance = document.querySelector("#guidance");
@@ -25,10 +25,7 @@ const feedback = document.querySelector("#feedback");
 const syncWarning = document.querySelector("#sync-warning");
 const syncDetail = document.querySelector("#sync-detail");
 const acceptList = document.querySelector("#accept-list");
-const versionLabel = document.querySelector("#version-label");
-const updateLink = document.querySelector("#update-link");
-const updateRefresh = document.querySelector("#update-refresh");
-const updateStatus = document.querySelector("#update-status");
+const versionNumber = document.querySelector("#version-number");
 
 const reporterErrorMessage = "Use 1–15 letters, numbers, or underscores. An @ at the start is optional.";
 
@@ -61,26 +58,6 @@ let cache;
 let removedCache;
 let syncIssue;
 let removedSyncIssue;
-let checkingUpdates = false;
-let currentUpdate = null;
-
-function showUpdate(update) {
-  currentUpdate = update ?? null;
-  updateLink.hidden = !update;
-  if (update) {
-    updateLink.href = update.url;
-    updateLink.textContent = `${versionLabel.textContent} -> Version ${update.version}`;
-    versionLabel.hidden = true;
-  } else {
-    versionLabel.hidden = false;
-    updateLink.removeAttribute("href");
-  }
-}
-
-function showUpdateError(message = "") {
-  updateStatus.textContent = message;
-  updateStatus.hidden = !message;
-}
 
 async function showQuota() {
   try {
@@ -90,38 +67,6 @@ async function showQuota() {
       (result.used >= result.limit ? ` · resets in ${Math.ceil(result.resetMs / 60_000)} min` : "");
   } catch {
     quota.textContent = "";
-  }
-}
-
-async function checkForUpdates(force = false) {
-  if (checkingUpdates) return;
-
-  checkingUpdates = true;
-  updateRefresh.disabled = true;
-  updateRefresh.setAttribute("aria-busy", "true");
-  try {
-    const result = await chrome.runtime.sendMessage({ type: "check-updates", force });
-    if (!result?.ok) {
-      const lastKnownUpdate = result?.update ?? currentUpdate;
-      showUpdate(lastKnownUpdate);
-      showUpdateError(lastKnownUpdate
-        ? "Could not check for updates. Showing the last known download."
-        : "Could not check for updates. Try again.");
-      return;
-    }
-
-    showUpdate(result.update);
-    showUpdateError();
-  } catch (error) {
-    console.warn("Could not check for extension updates.", error);
-    showUpdate(currentUpdate);
-    showUpdateError(currentUpdate
-      ? "Could not check for updates. Showing the last known download."
-      : "Could not check for updates. Try again.");
-  } finally {
-    checkingUpdates = false;
-    updateRefresh.disabled = false;
-    updateRefresh.removeAttribute("aria-busy");
   }
 }
 
@@ -183,11 +128,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes[SYNC_KEY]) syncIssue = changes[SYNC_KEY].newValue;
   if (changes[REMOVED_SYNC_KEY]) removedSyncIssue = changes[REMOVED_SYNC_KEY].newValue;
   if (changes[CACHE_KEY] || changes[REMOVED_CACHE_KEY] || changes[SYNC_KEY] || changes[REMOVED_SYNC_KEY]) showList();
-  if (changes[UPDATE_CACHE_KEY]) {
-    const update = changes[UPDATE_CACHE_KEY].newValue?.update;
-    showUpdate(update ?? null);
-    showUpdateError();
-  }
   if (changes[REMOVED_TAG_KEY]) removedTag.checked = changes[REMOVED_TAG_KEY].newValue !== false;
   if (changes[HIDE_KEY]) hide.checked = changes[HIDE_KEY].newValue === true;
   if (changes[INLINE_KEY]) {
@@ -206,12 +146,7 @@ if (post) {
 }
 
 const installedVersion = chrome.runtime.getManifest?.().version;
-versionLabel.textContent = installedVersion ? `Version ${installedVersion}` : "Version unavailable";
-updateRefresh.disabled = !installedVersion;
-updateRefresh.addEventListener("click", () => {
-  if (installedVersion) return checkForUpdates(true);
-});
-if (installedVersion) checkForUpdates();
+versionNumber.textContent = installedVersion ? `Version ${installedVersion}` : "Version unavailable";
 
 report.addEventListener("click", async () => {
   if (!post || report.disabled) return;

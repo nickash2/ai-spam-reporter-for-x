@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  CACHE_KEY, FEED_URL, REMOVED_CACHE_KEY, REMOVED_FEED_URL, REMOVED_SYNC_KEY, REPORT_URL, SYNC_KEY
+  CACHE_KEY, FEED_URL, REMOVED_CACHE_KEY, REMOVED_FEED_URL, REMOVED_SYNC_KEY, REPORTER_KEY, REPORT_URL, SYNC_KEY
 } from "../extension/reply.mjs";
 
 function event() {
@@ -48,14 +48,18 @@ test("worker keeps the last good list on failure and replaces it on recovery", a
       create: async ({ url }) => { opened.push(url); return { id: 42 }; },
       update: async (id, { url }) => {
         assert.equal(id, 42);
-        assert.equal(pending["reportDraft:42"], "https://x.com/Some_User/status/222");
+        assert.deepEqual(pending["reportDraft:42"], {
+          url: "https://x.com/Some_User/status/222",
+          reporter: "my_reporter"
+        });
         opened.push(url);
       }
     },
     storage: {
       local: {
         get: async () => ({
-          [CACHE_KEY]: cache, [REMOVED_CACHE_KEY]: removedCache, [REMOVED_SYNC_KEY]: removedSyncIssue, [SYNC_KEY]: syncIssue
+          [CACHE_KEY]: cache, [REMOVED_CACHE_KEY]: removedCache, [REMOVED_SYNC_KEY]: removedSyncIssue,
+          [REPORTER_KEY]: "my_reporter", [SYNC_KEY]: syncIssue
         }),
         set: async values => {
           if (CACHE_KEY in values) cache = values[CACHE_KEY];
@@ -143,8 +147,16 @@ test("worker keeps the last good list on failure and replaces it on recovery", a
   const otherTab = { url: REPORT_URL, tab: { id: 43 } };
   const reportTab = { url: REPORT_URL, tab: { id: 42 } };
   assert.deepEqual(await send({ type: "report-draft" }, otherTab), { ok: true });
-  assert.deepEqual(await send({ type: "report-draft" }, reportTab), { ok: true, url: postUrl });
-  assert.deepEqual(await send({ type: "report-draft" }, reportTab), { ok: true, url: postUrl });
+  assert.deepEqual(await send({ type: "report-draft" }, reportTab), {
+    ok: true, url: postUrl, reporter: "my_reporter"
+  });
+  assert.deepEqual(await send({ type: "report-draft" }, reportTab), {
+    ok: true, url: postUrl, reporter: "my_reporter"
+  });
+  pending["reportDraft:42"] = postUrl;
+  assert.deepEqual(await send({ type: "report-draft" }, reportTab), {
+    ok: true, url: postUrl, reporter: "my_reporter"
+  });
   onRemoved.listener(42);
   assert.deepEqual(await send({ type: "report-draft" }, reportTab), { ok: true });
 });

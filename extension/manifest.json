@@ -12,8 +12,7 @@
     "storage"
   ],
   "host_permissions": [
-    "https://blockedforaireply.com/*",
-    "https://api.github.com/*"
+    "https://blockedforaireply.com/*"
   ],
   "action": {
     "default_title": "AI Spam Reporter for X",

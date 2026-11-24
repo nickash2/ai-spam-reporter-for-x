@@ -1,7 +1,7 @@
 (() => {
   const { parsePostLink, handlePattern } = globalThis.replyReportLinks;
   const removedCacheKey = "removedAccounts";
-  const cardSelector = 'article[data-testid="tweet"]';
+  const cardSelector = 'article[data-testid="tweet"], article:not([data-testid])';
   const headerSelector = '[data-testid="User-Name"]';
   // X marks regular username and timestamp anchors with role="link" too.
   const quoteSelector = '[data-testid="quoteTweet"], [role="link"]:not(a)';
@@ -21,8 +21,9 @@
   }
 
   function selectPost(card) {
+    if (card.parentElement?.closest("article")) return null;
     const header = [...card.querySelectorAll(headerSelector)].find(element => belongsToPost(element, card));
-    if (!header) return null;
+    if (!header) return selectPostWithoutTestIds(card);
 
     const candidates = [...header.querySelectorAll("a[href]")].filter(link => belongsToPost(link, card));
     const pagePost = parsePostLink(location.href);
@@ -44,10 +45,37 @@
     return usernameLink ? { handle: usernameLink.pathname.slice(1), header, showBadgesBelow: true } : null;
   }
 
+  function selectPostWithoutTestIds(card) {
+    const pagePost = parsePostLink(location.href);
+    const outerLink = card.parentElement?.matches('[role="link"]')
+      ? [...card.parentElement.children].find(element => element.matches("a[href]"))
+      : null;
+    const links = [...card.querySelectorAll("a[href]")].filter(link => belongsToPost(link, card));
+    const post = parsePostLink(outerLink?.href) ?? (pagePost && links.some(link =>
+      parsePostLink(link.href)?.url.toLowerCase() === pagePost.url.toLowerCase()
+    ) ? pagePost : null);
+    if (!post) return null;
+
+    const usernameLink = links.find(link => {
+      const username = link.pathname.slice(1);
+      return link.origin === location.origin && handlePattern.test(username) &&
+        link.textContent.trim().toLowerCase() === `@${username.toLowerCase()}`;
+    });
+    if (!usernameLink || usernameLink.pathname.slice(1).toLowerCase() !== post.handle.toLowerCase()) return null;
+
+    return {
+      post,
+      handle: post.handle,
+      header: usernameLink.parentElement,
+      isOpenPost: Boolean(pagePost && post.url.toLowerCase() === pagePost.url.toLowerCase()),
+      showBadgesBelow: true
+    };
+  }
+
   function findActionRow(card) {
     return [...card.querySelectorAll('[role="group"]')].find(group =>
       belongsToPost(group, card) &&
-      [...group.querySelectorAll('[data-testid="reply"], [data-testid="like"], [data-testid="unlike"]')]
+      [...group.querySelectorAll('[data-testid="reply"], [data-testid="like"], [data-testid="unlike"], a[href^="/compose/post?in_reply_to="]')]
         .some(action => belongsToPost(action, card) && action.closest('[role="group"]') === group)
     );
   }
@@ -122,6 +150,7 @@
     const tagged = blocked || former;
     if (!enabled || hidden || (!selection?.post && !tagged)) {
       control?.wrapper.remove();
+      control?.badgeWrapper.remove();
       controls.delete(card);
       return;
     }
@@ -248,6 +277,9 @@
         if (change.type === "childList" && !change.removedNodes.length &&
             [...change.addedNodes].every(node => node.nodeType === Node.ELEMENT_NODE && node.matches(".rrx-inline"))) continue;
         queue(change.target.closest(cardSelector));
+        if (change.target.matches('a[href]') && change.target.parentElement?.matches('[role="link"]')) {
+          queue(change.target.parentElement.querySelector(":scope > article"));
+        }
         if (change.target.matches(".rrx-inline")) continue;
         for (const node of change.addedNodes) {
           if (node.nodeType !== Node.ELEMENT_NODE || node.matches(".rrx-inline")) continue;

@@ -180,41 +180,17 @@ button:disabled { opacity: .6; cursor: default; }
   padding-top: 8px;
   border-top: 1px solid var(--line);
 }
-.app-footer #update-status {
-  grid-column: 1 / -1;
-  justify-self: end;
-  max-width: 100%;
-  text-align: right;
-  overflow-wrap: anywhere;
-}
 .version-info {
   grid-column: 2;
   justify-self: end;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  white-space: nowrap;
 }
-.version-info #version-label { white-space: nowrap; }
-.version-info #update-link { color: var(--danger-ink); font-size: 11px; font-weight: 650; white-space: nowrap; }
-.version-info #update-link:hover { text-decoration: underline; }
-.version-info button {
-  display: grid;
-  width: 30px;
-  min-height: 30px;
-  padding: 0;
-  place-items: center;
-  color: var(--muted);
-}
-.version-info button:hover { color: var(--text); }
-.version-info button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.version-info button[aria-busy="true"] svg { animation: update-spin 900ms linear infinite; }
-@keyframes update-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) {
-  .version-info button[aria-busy="true"] svg { animation: none; }
-}
+.version-info svg { width: 12px; height: 12px; fill: currentColor; }
 @media (pointer: coarse) {
   button { min-height: 44px; }
-  .version-info button { width: 44px; min-height: 44px; }
 }
 .credit { grid-column: 1; justify-self: start; color: var(--muted); font-size: 11px; }
 
