@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Spam Reporter for X",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "See which X accounts are on the Blocked for AI Reply list and open reports with the post link filled in.",
   "minimum_chrome_version": "123",
   "permissions": [
