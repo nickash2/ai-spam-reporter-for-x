@@ -35,14 +35,14 @@
     const isOpenPost = Boolean(post && pagePost && post.url.toLowerCase() === pagePost.url.toLowerCase());
     const profileLinks = candidates.filter(link => link.origin === location.origin);
     if (post && profileLinks.some(link => link.pathname.toLowerCase() === `/${post.handle.toLowerCase()}`)) {
-      return { post, handle: post.handle, header, timestamp, isOpenPost, showBadgesBelow: isOpenPost };
+      return { post, handle: post.handle, header, timestamp, isOpenPost };
     }
 
     const usernameLink = profileLinks.find(link => {
       const username = link.pathname.slice(1);
       return handlePattern.test(username) && link.textContent.trim().toLowerCase() === `@${username.toLowerCase()}`;
     });
-    return usernameLink ? { handle: usernameLink.pathname.slice(1), header, showBadgesBelow: true } : null;
+    return usernameLink ? { handle: usernameLink.pathname.slice(1), header } : null;
   }
 
   function selectPostWithoutTestIds(card) {
@@ -67,8 +67,7 @@
       post,
       handle: post.handle,
       header: usernameLink.parentElement,
-      isOpenPost: Boolean(pagePost && post.url.toLowerCase() === pagePost.url.toLowerCase()),
-      showBadgesBelow: true
+      isOpenPost: Boolean(pagePost && post.url.toLowerCase() === pagePost.url.toLowerCase())
     };
   }
 
@@ -78,6 +77,16 @@
       [...group.querySelectorAll('[data-testid="reply"], [data-testid="like"], [data-testid="unlike"], a[href^="/compose/post?in_reply_to="]')]
         .some(action => belongsToPost(action, card) && action.closest('[role="group"]') === group)
     );
+  }
+
+  function findBadgeAnchor(header, card) {
+    let anchor = header;
+    while (anchor.parentElement && anchor.parentElement !== card) {
+      const style = window.getComputedStyle(anchor.parentElement);
+      if (style.display === "block" || (style.display === "flex" && style.flexDirection.startsWith("column"))) break;
+      anchor = anchor.parentElement;
+    }
+    return anchor;
   }
 
   function createControl(card) {
@@ -159,7 +168,7 @@
       return;
     }
 
-    const { post, handle, header, timestamp, showBadgesBelow } = selection;
+    const { post, handle, header, timestamp } = selection;
     if (!control) {
       control = createControl(card);
       controls.set(card, control);
@@ -171,17 +180,10 @@
       control.error.hidden = true;
       control.button.setAttribute("aria-label", `Report AI Post by @${handle} to Blocked for AI Reply`);
     }
-    const removedDate = removed.get(key);
-    const formattedRemovedDate = removedDate
-      ? new Date(`${removedDate}T00:00:00`).toLocaleDateString(undefined, {
-        month: "short", day: "numeric", year: "numeric"
-      })
-      : null;
-    const removedLabel = `Previously blocked${formattedRemovedDate ? ` · Removed ${formattedRemovedDate}` : ""}`;
     control.label.title = former
-      ? `@${handle} was removed from the list${formattedRemovedDate ? ` on ${formattedRemovedDate}` : ""}`
-      : `@${handle} is on the blocklist`;
-    control.text.replaceChildren(...(former ? [removedLabel] : ["Blocked on ", control.source]));
+      ? "Previously blocked on blockedforaireply.com"
+      : "Blocked on blockedforaireply.com";
+    control.text.replaceChildren(...(former ? ["Previously blocked"] : narrowLayout.matches ? ["Blocked"] : ["Blocked on ", control.source]));
     control.label.classList.toggle("rrx-tag-removed", former);
 
     control.button.hidden = blocked || !post;
@@ -189,34 +191,22 @@
     if (control.button.textContent !== buttonText) control.button.textContent = buttonText;
     control.label.hidden = !tagged;
     control.badgeWrapper.hidden = !tagged;
-    const badgeBelow = tagged && (showBadgesBelow || narrowLayout.matches);
-    control.badgeWrapper.classList.toggle("rrx-under-author", Boolean(badgeBelow));
+    control.badgeWrapper.classList.toggle("rrx-under-author", tagged);
     if (blocked) control.error.hidden = true;
 
     const actionRow = blocked ? null : findActionRow(card);
     control.wrapper.classList.toggle("rrx-in-action-row", Boolean(actionRow));
     if (!tagged) {
       control.badgeWrapper.remove();
-    } else if (badgeBelow) {
-      if (control.badgeWrapper.parentElement !== header) header.append(control.badgeWrapper);
     } else {
-      const anchor = timestamp && header.contains(timestamp) ? timestamp : header;
+      const anchor = findBadgeAnchor(header, card);
       if (anchor.nextElementSibling !== control.badgeWrapper) anchor.after(control.badgeWrapper);
     }
 
-    if (badgeBelow) {
-      if (actionRow) {
-        if (control.wrapper.parentElement !== actionRow) actionRow.append(control.wrapper);
-      } else {
-        const anchor = control.badgeWrapper.parentElement === header
-          ? control.badgeWrapper
-          : timestamp && header.contains(timestamp) ? timestamp : header;
-        if (anchor.nextElementSibling !== control.wrapper) anchor.after(control.wrapper);
-      }
-    } else if (actionRow) {
+    if (actionRow) {
       if (control.wrapper.parentElement !== actionRow) actionRow.append(control.wrapper);
     } else {
-      const anchor = tagged && control.badgeWrapper.parentElement === header
+      const anchor = tagged && control.badgeWrapper.parentElement
         ? control.badgeWrapper
         : timestamp && header.contains(timestamp) ? timestamp : header;
       if (anchor.nextElementSibling !== control.wrapper) anchor.after(control.wrapper);
