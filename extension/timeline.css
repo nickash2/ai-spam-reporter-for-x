@@ -127,3 +127,12 @@
 [data-testid="cellInnerDiv"]:has(> [data-rrx-hidden]) {
   display: none !important;
 }
+
+/* X ignores zero-height measurements; 1px lets its virtualizer close the gap. */
+li[data-index][data-rrx-collapsed] {
+  height: 1px !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+}

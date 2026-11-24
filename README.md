@@ -116,7 +116,7 @@ The extension never blocks accounts on your X account.
 
 Enable **Hide blocked accounts on X** in the popup to hide feed posts from listed accounts.
 
-Posts opened directly remain visible.
+Hidden rows collapse so the next visible post moves up, including in virtualized feeds. Turning the setting off restores the posts. Posts opened directly remain visible.
 
 ### Synchronization
 
