@@ -36,10 +36,10 @@ Accounts currently listed on Blocked for AI Reply receive a visible badge direct
 
 ### 4. Track previously blocked accounts
 
-Accounts removed from the blocklist receive a separate gray badge showing their removal date. The badge remains visible for 30 days.
+Accounts removed from the blocklist receive a separate gray badge. The badge remains visible for 30 days.
 
 <p align="center">
-  <img src="imgs/levelsunblocked.png" alt="Previously blocked account badge" width="600">
+  <img src="imgs/levelsunblocked.png" alt="Previously blocked account badge shown with a fictional account" width="600">
 </p>
 
 ### 5. Customize your experience

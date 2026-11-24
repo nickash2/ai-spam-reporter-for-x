@@ -52,7 +52,8 @@
   display: flex;
   flex: 0 0 auto;
   align-self: start;
-  margin: 6px 0 0;
+  width: fit-content;
+  margin: 4px 0;
   white-space: normal;
   overflow-wrap: anywhere;
 }

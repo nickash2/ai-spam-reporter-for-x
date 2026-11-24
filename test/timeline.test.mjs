@@ -169,6 +169,9 @@ test("timeline controls support legacy and newer post markup", async t => {
   });
   anchors = [profileLink, postLink];
   header.append(...anchors);
+  const authorContainer = new Element("author-container");
+  authorContainer.append(header);
+  card.append(authorContainer);
 
   const listeners = {};
   const stored = {
@@ -178,7 +181,11 @@ test("timeline controls support legacy and newer post markup", async t => {
     hideBlockedAccounts: false,
     showPreviouslyBlocked: true
   };
-  globalThis.window = { matchMedia: () => ({ matches: false, addEventListener() {} }) };
+  const narrowLayout = { matches: false, addEventListener(type, listener) { this.listener = listener; } };
+  globalThis.window = {
+    matchMedia: () => narrowLayout,
+    getComputedStyle: element => ({ display: "flex", flexDirection: element.name === "author-row" ? "row" : "column" })
+  };
   globalThis.location = { href: "https://x.com/home", origin: "https://x.com" };
   globalThis.requestAnimationFrame = callback => setTimeout(callback, 0);
   globalThis.MutationObserver = class {
@@ -205,17 +212,19 @@ test("timeline controls support legacy and newer post markup", async t => {
   await import("../extension/timeline.js");
   await new Promise(resolve => setTimeout(resolve, 10));
   const wrapper = group.children.find(element => element.classList.contains("rrx-inline"));
-  const badgeWrapper = header.children.find(element =>
+  const badgeWrapper = authorContainer.children.find(element =>
     element.classList.contains("rrx-inline") && element.classList.contains("rrx-listed")
   );
   const [reportButton] = wrapper.children;
   const [badge] = badgeWrapper.children;
 
   assert.equal(reportButton.hidden, false);
-  assert.match(badge.textContent, /Previously blocked · Removed/);
+  assert.equal(badge.textContent, "Previously blocked");
+  assert.equal(badge.title, "Previously blocked on blockedforaireply.com");
 
   assert.equal(wrapper.parentElement, group);
-  assert.equal(badgeWrapper.parentElement, header);
+  assert.equal(badgeWrapper.parentElement, authorContainer);
+  assert.equal(header.nextElementSibling, badgeWrapper);
 
   listeners.changed({
     removedAccounts: { newValue: { handles: [], removedAt: {} } }
@@ -231,19 +240,34 @@ test("timeline controls support legacy and newer post markup", async t => {
   }, "local");
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(reportButton.hidden, false);
-  assert.equal(badgeWrapper.parentElement, header);
+  assert.equal(badgeWrapper.parentElement, authorContainer);
 
   listeners.changed({ reviewedList: { newValue: { handles: ["former_user"] } } }, "local");
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(reportButton.hidden, true);
   assert.equal(badge.textContent, "Blocked on blockedforaireply.com");
+  assert.equal(badge.title, "Blocked on blockedforaireply.com");
+
+  narrowLayout.matches = true;
+  narrowLayout.listener();
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(badge.textContent, "Blocked");
+  assert.equal(badge.title, "Blocked on blockedforaireply.com");
+  assert.equal(header.nextElementSibling, badgeWrapper);
+  narrowLayout.matches = false;
+  narrowLayout.listener();
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(badge.textContent, "Blocked on blockedforaireply.com");
 
   listeners.changed({ reviewedList: { newValue: { handles: [] } } }, "local");
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(reportButton.hidden, false);
-  assert.match(badge.textContent, /Previously blocked · Removed/);
+  assert.equal(badge.textContent, "Previously blocked");
 
   modern = true;
+  const authorRow = new Element("author-row");
+  authorContainer.append(authorRow);
+  authorRow.append(header);
   const container = new Element("post-container");
   container.matches = selector => selector === '[role="link"]';
   container.closest = () => null;
@@ -255,7 +279,8 @@ test("timeline controls support legacy and newer post markup", async t => {
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(reportButton.hidden, false);
   assert.equal(wrapper.parentElement, group);
-  assert.equal(badgeWrapper.parentElement, header);
+  assert.equal(badgeWrapper.parentElement, authorContainer);
+  assert.equal(authorRow.nextElementSibling, badgeWrapper);
 
   outerLink.href = "https://x.com/Another_User/status/456";
   listeners.changed({ reviewedList: { newValue: { handles: [] } } }, "local");
@@ -266,7 +291,7 @@ test("timeline controls support legacy and newer post markup", async t => {
   outerLink.href = postLink.href;
   listeners.changed({ reviewedList: { newValue: { handles: ["former_user"] } } }, "local");
   await new Promise(resolve => setTimeout(resolve, 10));
-  const modernBadge = header.children.find(element => element.classList.contains("rrx-listed"));
+  const modernBadge = authorContainer.children.find(element => element.classList.contains("rrx-listed"));
   assert.equal(modernBadge.children[0].textContent, "Blocked on blockedforaireply.com");
 
   container.matches = () => false;
@@ -276,7 +301,7 @@ test("timeline controls support legacy and newer post markup", async t => {
   assert.equal(card["data-rrx-hidden"], false);
   assert.equal(feedCell["data-rrx-hidden"], false);
   assert.equal(virtualRow["data-rrx-collapsed"], false);
-  assert.equal(modernBadge.parentElement, header);
+  assert.equal(modernBadge.parentElement, authorContainer);
 
   container.matches = () => true;
   globalThis.location.href = "https://x.com/home";
