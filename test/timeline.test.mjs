@@ -16,6 +16,8 @@ test("timeline controls support legacy and newer post markup", async t => {
   const groupSelector = '[role="group"]';
   const actionSelector = '[data-testid="reply"], [data-testid="like"], [data-testid="unlike"], a[href^="/compose/post?in_reply_to="]';
   let card;
+  let feedCell;
+  let virtualRow;
   let group;
   let header;
   let anchors;
@@ -70,6 +72,8 @@ test("timeline controls support legacy and newer post markup", async t => {
     closest(selector) {
       if (selector === cardSelector) return card;
       if (selector === groupSelector) return group;
+      if (selector === '[data-testid="cellInnerDiv"]' && this === card) return feedCell;
+      if (selector === "li[data-index]" && this === card) return virtualRow;
       return null;
     }
 
@@ -140,6 +144,13 @@ test("timeline controls support legacy and newer post markup", async t => {
   }
 
   card = new Element("tweet-card");
+  feedCell = new Element("feed-cell");
+  virtualRow = new Element("virtual-row");
+  virtualRow.append(feedCell);
+  feedCell.append(card);
+  const quotedCard = new Element("quoted-card");
+  quotedCard.parentElement = { closest: selector => selector === "article" ? card : null };
+  quotedCard.closest = selector => selector === "li[data-index]" ? virtualRow : null;
   group = new Element("action-row");
   header = new Element("author-header");
   const profileLink = new Element("profile-link");
@@ -177,7 +188,7 @@ test("timeline controls support legacy and newer post markup", async t => {
   globalThis.document = {
     body: new Element("body"),
     createElement: name => new Element(name),
-    querySelectorAll: selector => selector === cardSelector ? [card] : []
+    querySelectorAll: selector => selector === cardSelector ? [card, quotedCard] : []
   };
   globalThis.chrome = {
     runtime: {
@@ -263,7 +274,31 @@ test("timeline controls support legacy and newer post markup", async t => {
   listeners.changed({ hideBlockedAccounts: { newValue: true } }, "local");
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(card["data-rrx-hidden"], false);
+  assert.equal(feedCell["data-rrx-hidden"], false);
+  assert.equal(virtualRow["data-rrx-collapsed"], false);
   assert.equal(modernBadge.parentElement, header);
+
+  container.matches = () => true;
+  globalThis.location.href = "https://x.com/home";
+  listeners.changed({ hideBlockedAccounts: { newValue: true } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(card["data-rrx-hidden"], true);
+  assert.equal(feedCell["data-rrx-hidden"], true);
+  assert.equal(virtualRow["data-rrx-collapsed"], true);
+
+  listeners.changed({ reviewedList: { newValue: { handles: [] } } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(virtualRow["data-rrx-collapsed"], false);
+
+  listeners.changed({ reviewedList: { newValue: { handles: ["former_user"] } } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(virtualRow["data-rrx-collapsed"], true);
+
+  listeners.changed({ hideBlockedAccounts: { newValue: false } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(card["data-rrx-hidden"], false);
+  assert.equal(feedCell["data-rrx-hidden"], false);
+  assert.equal(virtualRow["data-rrx-collapsed"], false);
 
   listeners.changed({ showInlineControls: { newValue: false } }, "local");
   await new Promise(resolve => setTimeout(resolve, 10));

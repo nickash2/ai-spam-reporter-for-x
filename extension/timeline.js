@@ -146,6 +146,10 @@
     const blocked = Boolean(selection && reviewed.has(key));
     const hidden = hideBlocked && blocked && !selection.isOpenPost;
     card.toggleAttribute("data-rrx-hidden", hidden);
+    if (!card.parentElement?.closest("article")) {
+      card.closest('[data-testid="cellInnerDiv"]')?.toggleAttribute("data-rrx-hidden", hidden);
+      card.closest("li[data-index]")?.toggleAttribute("data-rrx-collapsed", hidden);
+    }
     const former = Boolean(selection && showRemoved && !blocked && removed.has(key));
     const tagged = blocked || former;
     if (!enabled || hidden || (!selection?.post && !tagged)) {
