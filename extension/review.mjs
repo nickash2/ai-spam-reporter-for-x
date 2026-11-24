@@ -1,6 +1,6 @@
 import {
-  CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_CACHE_KEY, REMOVED_SYNC_KEY, REMOVED_TAG_KEY, SYNC_KEY,
-  UPDATE_CACHE_KEY, parsePostLink
+  CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_CACHE_KEY, REMOVED_SYNC_KEY, REMOVED_TAG_KEY, REPORTER_KEY, SYNC_KEY,
+  normalizeReporter, parsePostLink
 } from "./reply.mjs";
 
 const guidance = document.querySelector("#guidance");
@@ -10,6 +10,9 @@ const permalink = document.querySelector("#permalink");
 const membership = document.querySelector("#membership");
 const report = document.querySelector("#report");
 const reportTip = document.querySelector("#report-tip");
+const reporter = document.querySelector("#reporter");
+const reporterError = document.querySelector("#reporter-error");
+const quota = document.querySelector("#quota");
 const copy = document.querySelector("#copy");
 const inline = document.querySelector("#inline");
 const hide = document.querySelector("#hide");
@@ -22,10 +25,27 @@ const feedback = document.querySelector("#feedback");
 const syncWarning = document.querySelector("#sync-warning");
 const syncDetail = document.querySelector("#sync-detail");
 const acceptList = document.querySelector("#accept-list");
-const versionLabel = document.querySelector("#version-label");
-const updateLink = document.querySelector("#update-link");
-const updateRefresh = document.querySelector("#update-refresh");
-const updateStatus = document.querySelector("#update-status");
+const versionNumber = document.querySelector("#version-number");
+
+const reporterErrorMessage = "Use 1–15 letters, numbers, or underscores. An @ at the start is optional.";
+
+function showReporterError() {
+  reporter.setAttribute("aria-invalid", "true");
+  reporterError.textContent = reporterErrorMessage;
+  reporterError.hidden = false;
+}
+
+function clearReporterError() {
+  reporter.setAttribute("aria-invalid", "false");
+  reporterError.textContent = "";
+  reporterError.hidden = true;
+}
+
+async function saveReporter(value) {
+  if (value) await chrome.storage.local.set({ [REPORTER_KEY]: value });
+  else await chrome.storage.local.remove(REPORTER_KEY);
+  reporter.value = value;
+}
 
 const draft = new URL(window.location.href).searchParams;
 const [activeTab] = draft.has("post") ? [] : await chrome.tabs.query({ active: true, currentWindow: true });
@@ -38,56 +58,15 @@ let cache;
 let removedCache;
 let syncIssue;
 let removedSyncIssue;
-let checkingUpdates = false;
-let currentUpdate = null;
 
-function showUpdate(update) {
-  currentUpdate = update ?? null;
-  updateLink.hidden = !update;
-  if (update) {
-    updateLink.href = update.url;
-    updateLink.textContent = `${versionLabel.textContent} -> Version ${update.version}`;
-    versionLabel.hidden = true;
-  } else {
-    versionLabel.hidden = false;
-    updateLink.removeAttribute("href");
-  }
-}
-
-function showUpdateError(message = "") {
-  updateStatus.textContent = message;
-  updateStatus.hidden = !message;
-}
-
-async function checkForUpdates(force = false) {
-  if (checkingUpdates) return;
-
-  checkingUpdates = true;
-  updateRefresh.disabled = true;
-  updateRefresh.setAttribute("aria-busy", "true");
+async function showQuota() {
   try {
-    const result = await chrome.runtime.sendMessage({ type: "check-updates", force });
-    if (!result?.ok) {
-      const lastKnownUpdate = result?.update ?? currentUpdate;
-      showUpdate(lastKnownUpdate);
-      showUpdateError(lastKnownUpdate
-        ? "Could not check for updates. Showing the last known download."
-        : "Could not check for updates. Try again.");
-      return;
-    }
-
-    showUpdate(result.update);
-    showUpdateError();
-  } catch (error) {
-    console.warn("Could not check for extension updates.", error);
-    showUpdate(currentUpdate);
-    showUpdateError(currentUpdate
-      ? "Could not check for updates. Showing the last known download."
-      : "Could not check for updates. Try again.");
-  } finally {
-    checkingUpdates = false;
-    updateRefresh.disabled = false;
-    updateRefresh.removeAttribute("aria-busy");
+    const result = await chrome.runtime.sendMessage({ type: "report-quota" });
+    if (!result?.ok) return;
+    quota.textContent = `Reports this hour: ${result.used}/${result.limit}` +
+      (result.used >= result.limit ? ` · resets in ${Math.ceil(result.resetMs / 60_000)} min` : "");
+  } catch {
+    quota.textContent = "";
   }
 }
 
@@ -149,11 +128,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes[SYNC_KEY]) syncIssue = changes[SYNC_KEY].newValue;
   if (changes[REMOVED_SYNC_KEY]) removedSyncIssue = changes[REMOVED_SYNC_KEY].newValue;
   if (changes[CACHE_KEY] || changes[REMOVED_CACHE_KEY] || changes[SYNC_KEY] || changes[REMOVED_SYNC_KEY]) showList();
-  if (changes[UPDATE_CACHE_KEY]) {
-    const update = changes[UPDATE_CACHE_KEY].newValue?.update;
-    showUpdate(update ?? null);
-    showUpdateError();
-  }
   if (changes[REMOVED_TAG_KEY]) removedTag.checked = changes[REMOVED_TAG_KEY].newValue !== false;
   if (changes[HIDE_KEY]) hide.checked = changes[HIDE_KEY].newValue === true;
   if (changes[INLINE_KEY]) {
@@ -172,28 +146,66 @@ if (post) {
 }
 
 const installedVersion = chrome.runtime.getManifest?.().version;
-versionLabel.textContent = installedVersion ? `Version ${installedVersion}` : "Version unavailable";
-updateRefresh.disabled = !installedVersion;
-updateRefresh.addEventListener("click", () => {
-  if (installedVersion) return checkForUpdates(true);
-});
-if (installedVersion) checkForUpdates();
+versionNumber.textContent = installedVersion ? `Version ${installedVersion}` : "Version unavailable";
 
 report.addEventListener("click", async () => {
   if (!post || report.disabled) return;
 
+  const reporterValue = normalizeReporter(reporter.value);
+  if (reporterValue === null) {
+    showReporterError();
+    reporter.focus();
+    return;
+  }
+  clearReporterError();
+  try {
+    await saveReporter(reporterValue);
+  } catch {
+    feedback.textContent = "Could not save your username, so the report wasn't sent.";
+    return;
+  }
+
   openingReport = true;
   report.disabled = true;
-  feedback.textContent = "Opening the report form…";
+  feedback.textContent = "Sending report…";
   try {
-    const result = await chrome.runtime.sendMessage({ type: "open-report", url: post.url });
-    if (!result?.ok) throw new Error(result?.error ?? "Could not open the report form.");
-    feedback.textContent = "Report tab opened. Review the form before sending.";
+    let result = await chrome.runtime.sendMessage({ type: "submit-report", url: post.url });
+    if (result?.fallback) {
+      feedback.textContent = "Couldn’t send directly. Opening the report form…";
+      result = await chrome.runtime.sendMessage({ type: "open-report", url: post.url });
+      if (!result?.ok) throw new Error(result?.error ?? "Could not open the report form.");
+      feedback.textContent = "Report tab opened. Review the form before sending.";
+    } else {
+      if (!result?.ok) throw new Error(result?.error ?? "Could not send the report.");
+      feedback.textContent = result.message || "Reported. Thank you!";
+    }
   } catch (error) {
     feedback.textContent = error.message;
   } finally {
     openingReport = false;
     report.disabled = alreadyListed;
+    showQuota();
+  }
+});
+
+reporter.addEventListener("input", () => {
+  if (reporter.getAttribute("aria-invalid") === "true" && normalizeReporter(reporter.value) !== null) {
+    clearReporterError();
+  }
+});
+
+reporter.addEventListener("change", async () => {
+  const value = normalizeReporter(reporter.value);
+  if (value === null) {
+    showReporterError();
+    return;
+  }
+  clearReporterError();
+  try {
+    await saveReporter(value);
+    feedback.textContent = value ? "Username saved." : "Username cleared.";
+  } catch {
+    feedback.textContent = "Could not save the username.";
   }
 });
 
@@ -269,8 +281,9 @@ acceptList.addEventListener("click", () => {
   if (syncIssue?.type === "drop") requestRefresh(syncIssue.digest);
 });
 const stored = await chrome.storage.local.get([
-  CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_CACHE_KEY, REMOVED_SYNC_KEY, REMOVED_TAG_KEY, SYNC_KEY
+  CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_CACHE_KEY, REMOVED_SYNC_KEY, REMOVED_TAG_KEY, REPORTER_KEY, SYNC_KEY
 ]);
+reporter.value = stored[REPORTER_KEY] ?? "";
 removedTag.checked = stored[REMOVED_TAG_KEY] !== false;
 inline.checked = stored[INLINE_KEY] !== false;
 hide.checked = stored[HIDE_KEY] === true;
@@ -281,3 +294,4 @@ syncIssue = stored[SYNC_KEY];
 showList();
 showInlineStatus();
 if (!cache) requestRefresh();
+showQuota();

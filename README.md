@@ -1,53 +1,165 @@
+
 # AI Spam Reporter for X
 
-Report automated spam replies on X to [Blocked for AI Reply](https://blockedforaireply.com/) without copying or pasting the post link.
+Report automated spam replies on X through [Blocked for AI Reply](https://blockedforaireply.com/) without manually copying and pasting post links.
 
-**[Download the extension ZIP](https://github.com/nickash2/ai-spam-reporter-for-x/releases/latest)**
+[![Install from Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Install-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/ai-spam-reporter-for-x/kopcommfnaleghonicpabffogacdliam)
+[![Version](https://img.shields.io/chrome-web-store/v/kopcommfnaleghonicpabffogacdliam?label=version&logo=googlechrome&logoColor=white)](https://github.com/nickash2/ai-spam-reporter-for-x/releases/latest)
+![License](https://img.shields.io/badge/License-MIT-blue)
 
-<table role="presentation">
-  <tr>
-    <td align="center" valign="top"><strong>1. Click Report AI Post</strong><br><img src="imgs/X_post_view.png" alt="Three posts in the X feed, each with a Report AI Post button" width="620"></td>
-    <td align="center" valign="top"><strong>2. Review and send</strong><br><img src="imgs/report_page_autofilled.png" alt="Report form with the post link filled in and a Send report button" width="387"></td>
-  </tr>
-  <tr>
-    <td align="center" valign="top"><strong>Blocklist badge on X</strong><br><img src="imgs/levelsblocked.png" alt="Blocked badge beside an author's name on X" width="620"></td>
-    <td align="center" valign="top"><strong>Extension popup</strong><br><img src="imgs/extension_view.png" alt="Extension popup with controls and sync status" width="487"></td>
-  </tr>
-  <tr>
-    <td align="center" valign="top" colspan="2"><strong>Previously blocked badge on X (visible for 30 days)</strong><br><img src="imgs/levelsunblocked.png" alt="Example of a Previously blocked badge beside an author's name on X" width="620"></td>
-  </tr>
-</table>
 
-## Install or upgrade
+## Features
 
-1. Under **Assets**, download and extract the ZIP named `ai-spam-reporter-extension-vX.Y.Z.zip`, not **Source code (zip)**.
-2. In Chrome, open `chrome://extensions` and enable **Developer mode**.
-3. Pick **Load unpacked** and select the extracted `extension` folder containing `manifest.json`.
-4. Refresh any X tabs you already had open. If you installed the earlier prototype from a different folder, disable it to avoid two toolbar icons and right-click menu entries.
+### 1. Report AI spam directly on X
 
-## Use it
+A "Report AI Post" button appears alongside the usual actions on X posts.
 
-- Click **Report AI Post** alongside Reply and Like. On the report page, review the prefilled link and click **Send report** when ready. Only report automated spam replies.
-- Listed accounts display a red badge reading Blocked on **blockedforaireply.com** beside the author in the timeline and below the handle on the opened post. The extension does an exact, case-insensitive match and never modifies your X account.
-- If X doesn't display its usual timestamp and author layout, open the post directly and select **Open report form** in the toolbar popup. You can also right-click the post's timestamp and select **Report AI Post**.
-- To keep listed accounts out of your feed without blocking each one individually on X, turn on **Hide blocked accounts** in the popup. This hides their feed posts; a post you open directly stays visible.
-- Accounts in the site's removed-account feed show a gray **Previously blocked** badge with the removal date for 30 days. **Blocked** means currently listed; **Previously blocked** means removed from the current list. Turn the historical tag off with **Show "Previously blocked" tag**.
-- Use the toolbar popup to turn inline controls off, see when each list was last updated, or refresh both lists immediately.
+<p align="center">
+  <img src="imgs/X_post_view.png" alt="Report AI Post buttons on X" width="600">
+</p>
 
-## Data and integration
+### 2. Review before submitting
 
-The service worker downloads the public username feed and the site's removed-account feed on installation and approximately hourly while Chrome is running. The popup shows each feed's last successful sync separately and reports failures independently. It replaces each snapshot on success and preserves the last valid snapshot if a refresh fails.
+The reporting form opens with the post URL & your username already filled in. Review the details before sending your report.
 
-The post link stays available to the report tab until it closes, so reloading the form can restore it. The report page confirms the link once it fills the field and offers **Copy link** for recovery if the form changes. Only the site's own **Send report** button submits it. The extension does not send reply text, screenshots, account credentials, or analytics.
+<p align="center">
+  <img src="imgs/report_page_autofilled.png" alt="Prefilled reporting form" width="360">
+</p>
 
-See [PRIVACY.md](PRIVACY.md) for details about accessed information, local storage, external services, and report submission.
+### 3. Identify blocklisted accounts
 
-## Run the checks
+Accounts currently listed on Blocked for AI Reply receive a visible badge directly on X.
 
-From the extracted project directory, use Node.js 22 or newer.
+<p align="center">
+  <img src="imgs/levelsblocked.png" alt="Blocklisted account badge on X" width="600">
+</p>
+
+### 4. Track previously blocked accounts
+
+Accounts removed from the blocklist receive a separate gray badge showing their removal date. The badge remains visible for 30 days.
+
+<p align="center">
+  <img src="imgs/levelsunblocked.png" alt="Previously blocked account badge" width="600">
+</p>
+
+### 5. Customize your experience
+
+The extension popup lets you:
+
+- Enable or disable inline reporting controls.
+- Hide posts from currently blocklisted accounts.
+- Show or hide previously blocked account badges.
+- Check the synchronization status of both lists.
+- Manually refresh blocklist data.
+- Open the reporting form or copy a post link.
+
+<p align="center">
+  <img src="imgs/extension_view.png" alt="AI Spam Reporter extension popup" width="360">
+</p>
+
+## Installation
+
+### Chrome Web Store (recommended)
+
+[Install AI Spam Reporter for X](https://chromewebstore.google.com/detail/ai-spam-reporter-for-x/kopcommfnaleghonicpabffogacdliam)
+
+1. Open the Chrome Web Store listing.
+2. Click **Add to Chrome**.
+3. Confirm the installation.
+4. Refresh any X tabs already open.
+
+Chrome automatically handles updates for Web Store installations.
+
+### Manual installation (GitHub)
+
+<details>
+<summary>Install or upgrade manually</summary>
+
+1. Open the [latest GitHub release](https://github.com/nickash2/ai-spam-reporter-for-x/releases/latest).
+2. Under **Assets**, download `ai-spam-reporter-extension-vX.Y.Z.zip`. Do not use the automatically generated "Source code (zip)" archive.
+3. Extract the downloaded ZIP.
+4. Open `chrome://extensions` in Chrome.
+5. Enable **Developer mode**.
+6. Select **Load unpacked** and choose the extracted `extension` folder containing `manifest.json`.
+7. Refresh your X tabs.
+
+If you installed an earlier prototype from another folder, disable it to prevent duplicate controls.
+
+</details>
+
+## How it works
+
+### Reporting
+
+Click **Report AI Post** on an X post to open the reporting workflow.
+
+If the service requires human verification, the extension opens a prefilled report form. Review the report and submit it through the website.
+
+You can also:
+
+- Open the reporting form from the extension popup.
+- Right-click a post's timestamp and choose **Report AI Post**.
+- Copy the post link manually if necessary.
+
+Only report automated spam replies.
+
+### Blocklist matching
+
+The extension downloads the public username list from Blocked for AI Reply and performs exact, case-insensitive matching.
+
+- **Blocked:** The account is currently listed.
+- **Previously blocked:** The account was removed from the current list within the last 30 days.
+
+The extension never blocks accounts on your X account.
+
+### Feed hiding
+
+Enable **Hide blocked accounts on X** in the popup to hide feed posts from listed accounts.
+
+Posts opened directly remain visible.
+
+### Synchronization
+
+The extension downloads the public blocklist and removed-account feed on installation and approximately every hour while Chrome is running.
+
+Both lists are synchronized independently. If a refresh fails, the extension preserves the last valid snapshot.
+
+You can also trigger synchronization manually using **Sync lists**.
+
+## Privacy and data handling
+
+AI Spam Reporter for X uses publicly available information from Blocked for AI Reply.
+
+- User preferences and downloaded lists are stored locally.
+- X post URLs and account handles are processed for matching and reporting.
+- Reports require user action.
+- The extension does not automatically block X accounts.
+- The extension does not collect analytics, screenshots, account credentials, or reply text.
+
+See [PRIVACY.md](PRIVACY.md) for more information.
+
+## Development
+
+Requirements: Node.js 22 or newer.
+
+Run the automated tests from the project directory:
 
 ```sh
 node --test
 ```
 
-If a sync fails, AI Spam Reporter for X keeps the last synced list and shows its status in the popup. A drop of more than 25% from a list of at least 100 accounts requires confirmation. **Use smaller list** downloads the list again and accepts it only if it matches the result you reviewed. On narrow pages, the X action displays **Report** and the blocklist badge sits below the author's handle.
+The extension also includes safeguards against unexpectedly large decreases in the downloaded blocklist.
+
+## Contributing
+
+Contributions, bug reports, and suggestions are welcome.
+
+- [Report an issue](https://github.com/nickash2/ai-spam-reporter-for-x/issues)
+- [View the source code](https://github.com/nickash2/ai-spam-reporter-for-x)
+- [Latest releases](https://github.com/nickash2/ai-spam-reporter-for-x/releases/latest)
+
+## Disclaimer
+
+AI Spam Reporter for X is an independent, unofficial extension. It is not affiliated with X or Blocked for AI Reply.
+
+Licensed under the [MIT License](LICENSE).

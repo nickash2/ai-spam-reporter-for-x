@@ -1,13 +1,12 @@
 import {
-  CACHE_KEY, FEED_URL, RELEASES_API_URL, REMOVED_CACHE_KEY, REMOVED_FEED_URL, REMOVED_SYNC_KEY, REPORT_URL, SYNC_KEY,
-  UPDATE_CACHE_KEY, UPDATE_CHECK_INTERVAL_MS, findNewerRelease, parsePostLink, parseRemovedFeed, parseUsernameFeed
+  CACHE_KEY, FEED_URL, REMOVED_CACHE_KEY, REMOVED_FEED_URL, REMOVED_SYNC_KEY, REPORTER_KEY, REPORT_API_URL, REPORT_HISTORY_KEY, REPORT_LIMIT, REPORT_URL, SYNC_KEY,
+  parsePostLink, parseRemovedFeed, parseUsernameFeed, reportQuota
 } from "./reply.mjs";
 
 const refreshAlarm = "refresh-reviewed-list";
 const reportMenu = "review-reply-link";
 const refreshPeriodMinutes = 60;
 let pendingRefresh;
-let pendingUpdateCheck;
 
 function refreshList(approvedDigest) {
   if (pendingRefresh) return pendingRefresh;
@@ -81,68 +80,6 @@ async function refreshRemovedAccounts() {
   }
 }
 
-function validUpdateCache(value, installedVersion) {
-  if (value?.installedVersion !== installedVersion || !Number.isFinite(value.checkedAt) ||
-      value.checkedAt > Date.now() || !("update" in value)) return false;
-  if (value.update === null) return true;
-  if (typeof value.update?.version !== "string" || typeof value.update.url !== "string") return false;
-  try {
-    const url = new URL(value.update.url);
-    return url.origin === "https://github.com" &&
-      url.pathname.startsWith("/nickash2/ai-spam-reporter-for-x/releases/download/");
-  } catch {
-    return false;
-  }
-}
-
-function checkForUpdates(force = false) {
-  if (pendingUpdateCheck) return pendingUpdateCheck;
-
-  pendingUpdateCheck = (async () => {
-    const installedVersion = chrome.runtime.getManifest().version;
-    let stored;
-    try {
-      stored = await chrome.storage.local.get(UPDATE_CACHE_KEY);
-    } catch (error) {
-      console.warn("Could not read cached release information.", error);
-    }
-
-    const cached = stored?.[UPDATE_CACHE_KEY];
-    const cacheValid = validUpdateCache(cached, installedVersion);
-    if (cacheValid && !force && Date.now() - cached.checkedAt < UPDATE_CHECK_INTERVAL_MS) {
-      return { ok: true, update: cached.update };
-    }
-
-    try {
-      const response = await fetch(RELEASES_API_URL, {
-        cache: "no-cache",
-        credentials: "omit",
-        headers: { Accept: "application/vnd.github+json" },
-        redirect: "error",
-        signal: AbortSignal.timeout(8_000)
-      });
-      if (!response.ok) throw new Error(`GitHub update check failed (HTTP ${response.status}).`);
-
-      const update = findNewerRelease(await response.json(), installedVersion);
-      try {
-        await chrome.storage.local.set({
-          [UPDATE_CACHE_KEY]: { checkedAt: Date.now(), installedVersion, update }
-        });
-      } catch (error) {
-        console.warn("Could not cache GitHub release information.", error);
-      }
-      return { ok: true, update };
-    } catch (error) {
-      console.warn("Could not check for extension updates.", error);
-      return { ok: false, update: cacheValid ? cached.update : null };
-    }
-  })().finally(() => {
-    pendingUpdateCheck = undefined;
-  });
-
-  return pendingUpdateCheck;
-}
-
 async function prepareSchedule() {
   if (!await chrome.alarms.get(refreshAlarm)) {
     await chrome.alarms.create(refreshAlarm, { periodInMinutes: refreshPeriodMinutes });
@@ -165,7 +102,6 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
     });
   }
   refreshList().catch(console.warn);
-  checkForUpdates(true).catch(console.warn);
 });
 
 chrome.contextMenus.onClicked.addListener((info) => {
@@ -176,12 +112,9 @@ chrome.contextMenus.onClicked.addListener((info) => {
   chrome.tabs.create({ url: reviewUrl.href }).catch(console.warn);
 });
 
-chrome.alarms.onAlarm.addListener(async alarm => {
+chrome.alarms.onAlarm.addListener(alarm => {
   if (alarm.name !== refreshAlarm) return;
-  await Promise.all([
-    refreshList().catch(console.warn),
-    checkForUpdates(true).catch(console.warn)
-  ]);
+  refreshList().catch(console.warn);
 });
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -191,10 +124,7 @@ chrome.runtime.onStartup.addListener(async () => {
   const removedAge = now - (stored[REMOVED_CACHE_KEY]?.updatedAt ?? 0);
   const needsRefresh = age >= refreshPeriodMinutes * 60_000 ||
     removedAge >= refreshPeriodMinutes * 60_000 || stored[REMOVED_SYNC_KEY]?.type === "failed";
-  await Promise.all([
-    needsRefresh ? refreshList().catch(console.warn) : Promise.resolve(),
-    checkForUpdates().catch(console.warn)
-  ]);
+  if (needsRefresh) await refreshList().catch(console.warn);
 });
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
@@ -203,13 +133,18 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   let operation;
   if (message?.type === "refresh-list") {
     operation = refreshList();
-  } else if (message?.type === "check-updates") {
-    operation = checkForUpdates(message.force === true);
   } else if (message?.type === "accept-list-drop" && typeof message.digest === "string" &&
              sender.url === chrome.runtime.getURL("review.html")) {
     operation = refreshList(message.digest);
   } else if (message?.type === "open-report") {
     operation = openReport(message.url);
+  } else if (message?.type === "report-quota") {
+    operation = chrome.storage.local.get(REPORT_HISTORY_KEY).then(stored => {
+      const { used, limit, resetMs } = reportQuota(stored[REPORT_HISTORY_KEY]);
+      return { ok: true, used, limit, resetMs };
+    });
+  } else if (message?.type === "submit-report") {
+    operation = submitReport(message.url);
   } else if (message?.type === "report-draft" && sender.url === REPORT_URL && Number.isInteger(sender.tab?.id)) {
     operation = getDraft(sender.tab.id);
   } else {
@@ -228,7 +163,7 @@ async function openReport(value) {
   const post = parsePostLink(value);
   if (!post) return { ok: false, error: "Choose the URL of an X post." };
 
-  const stored = await chrome.storage.local.get(CACHE_KEY);
+  const stored = await chrome.storage.local.get([CACHE_KEY, REPORTER_KEY]);
   if (stored[CACHE_KEY]?.handles.includes(post.handle.toLowerCase())) {
     return { ok: false, error: "This account is already on the blocklist." };
   }
@@ -236,7 +171,9 @@ async function openReport(value) {
   const tab = await chrome.tabs.create({ url: "about:blank", active: false });
   const key = draftKey(tab.id);
   try {
-    await chrome.storage.session.set({ [key]: post.url });
+    await chrome.storage.session.set({
+      [key]: { url: post.url, reporter: stored[REPORTER_KEY] ?? "" }
+    });
     await chrome.tabs.update(tab.id, { url: REPORT_URL, active: true });
     return { ok: true };
   } catch (error) {
@@ -245,10 +182,77 @@ async function openReport(value) {
   }
 }
 
+async function submitReport(value) {
+  const post = parsePostLink(value);
+  if (!post) return { ok: false, error: "Choose the URL of an X post." };
+
+  const stored = await chrome.storage.local.get([CACHE_KEY, REPORTER_KEY, REPORT_HISTORY_KEY]);
+  if (stored[CACHE_KEY]?.handles.includes(post.handle.toLowerCase())) {
+    return { ok: false, error: "This account is already on the blocklist." };
+  }
+
+  const quota = reportQuota(stored[REPORT_HISTORY_KEY]);
+  if (quota.used >= quota.limit) {
+    return { ok: false, error: `Hourly report limit reached. Try again in ${Math.ceil(quota.resetMs / 60_000)} min.` };
+  }
+  if (quota.cooldownMs > 0) {
+    return { ok: false, error: `Please wait ${Math.ceil(quota.cooldownMs / 1000)}s before the next report.` };
+  }
+
+  const payload = { tweet_url: post.url };
+  if (stored[REPORTER_KEY]) payload.reporter = stored[REPORTER_KEY];
+
+  let response;
+  try {
+    response = await fetch(REPORT_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      credentials: "omit"
+    });
+  } catch {
+    return { ok: false, fallback: true, error: "Couldn’t reach the report service." };
+  }
+
+  const body = await response.json().catch(() => null);
+  if (response.ok && body?.ok) {
+    await chrome.storage.local.set({ [REPORT_HISTORY_KEY]: [...quota.recent, Date.now()] });
+    return { ok: true, message: body.message };
+  }
+  if (response.status === 429) {
+    // The server's limit is per IP, so fill our local window to match.
+    const filled = Array.from({ length: Math.max(0, REPORT_LIMIT - quota.used) }, () => Date.now());
+    await chrome.storage.local.set({ [REPORT_HISTORY_KEY]: [...quota.recent, ...filled] });
+    const seconds = Number(body?.retry_after ?? response.headers.get("Retry-After"));
+    const wait = Number.isFinite(seconds) && seconds > 0 ? ` Try again in ${Math.ceil(seconds / 60)} min.` : "";
+    return { ok: false, error: `Report limit reached.${wait}` };
+  }
+  const error = typeof body?.error === "string" ? body.error : "The report was not accepted.";
+  return {
+    ok: false,
+    fallback: response.status === 401 || response.status === 403 || response.status >= 500 ||
+      /human check|human verification|captcha/i.test(error),
+    error
+  };
+}
+
 async function getDraft(tabId) {
   const key = draftKey(tabId);
-  const stored = await chrome.storage.session.get(key);
-  return stored[key] ? { ok: true, url: stored[key] } : { ok: true };
+  const [session, local] = await Promise.all([
+    chrome.storage.session.get(key),
+    chrome.storage.local.get(REPORTER_KEY)
+  ]);
+  const draft = session[key];
+  if (typeof draft === "string") {
+    return { ok: true, url: draft, reporter: local[REPORTER_KEY] ?? "" };
+  }
+  return typeof draft?.url === "string"
+    ? {
+      ok: true,
+      url: draft.url,
+      reporter: typeof draft.reporter === "string" && draft.reporter ? draft.reporter : local[REPORTER_KEY] ?? ""
+    }
+    : { ok: true };
 }
 
 chrome.tabs.onRemoved.addListener(tabId => {

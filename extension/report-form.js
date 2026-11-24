@@ -46,7 +46,9 @@
   function fillReport() {
     const button = document.querySelector("button[data-report]");
     const dialog = document.querySelector("dialog#report");
-    const input = dialog?.querySelector("form#report-form input[name='tweet_url'][type='url']");
+    const form = dialog?.querySelector("form#report-form");
+    const input = form?.querySelector("input[name='tweet_url'][type='url']");
+    const reporterInput = form?.querySelector("input[name='reporter']");
     if (!button || !input) return false;
 
     if (!dialog.open) button.click();
@@ -55,6 +57,12 @@
     input.value = draft.url;
     input.dispatchEvent(new Event("input", { bubbles: true }));
     if (input.value !== draft.url) return false;
+    const reporter = typeof draft.reporter === "string" ? draft.reporter.trim().replace(/^@/, "") : "";
+    if (reporterInput && !reporterInput.value &&
+        /^[a-z0-9_]{1,15}$/i.test(reporter)) {
+      reporterInput.value = `@${reporter}`;
+      reporterInput.dispatchEvent(new Event("input", { bubbles: true }));
+    }
     input.after(recoveryPanel(input));
     input.focus();
     return true;

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import "../extension/reply.mjs";
 
-test("previously blocked accounts keep the report action while blocklisted accounts do not", async t => {
+test("timeline controls support legacy and newer post markup", async t => {
   const globalNames = ["chrome", "document", "location", "MutationObserver", "requestAnimationFrame", "window"];
   const previousGlobals = new Map(globalNames.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
   t.after(() => {
@@ -12,12 +12,14 @@ test("previously blocked accounts keep the report action while blocklisted accou
     }
   });
 
-  const cardSelector = 'article[data-testid="tweet"]';
+  const cardSelector = 'article[data-testid="tweet"], article:not([data-testid])';
   const groupSelector = '[role="group"]';
+  const actionSelector = '[data-testid="reply"], [data-testid="like"], [data-testid="unlike"], a[href^="/compose/post?in_reply_to="]';
   let card;
   let group;
   let header;
   let anchors;
+  let modern = false;
 
   class Element {
     constructor(name) {
@@ -80,10 +82,11 @@ test("previously blocked accounts keep the report action while blocklisted accou
     }
 
     querySelectorAll(selector) {
-      if (this === card && selector === '[data-testid="User-Name"]') return [header];
+      if (this === card && selector === '[data-testid="User-Name"]') return modern ? [] : [header];
       if (this === card && selector === groupSelector) return [group];
+      if (this === card && selector === "a[href]" && modern) return anchors;
       if (this === header && selector === "a[href]") return anchors;
-      if (this === group && selector === '[data-testid="reply"], [data-testid="like"], [data-testid="unlike"]') {
+      if (this === group && selector === actionSelector) {
         return [new Element("reply-action")];
       }
       return [];
@@ -199,6 +202,7 @@ test("previously blocked accounts keep the report action while blocklisted accou
 
   assert.equal(reportButton.hidden, false);
   assert.match(badge.textContent, /Previously blocked · Removed/);
+
   assert.equal(wrapper.parentElement, group);
   assert.equal(badgeWrapper.parentElement, header);
 
@@ -227,4 +231,41 @@ test("previously blocked accounts keep the report action while blocklisted accou
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(reportButton.hidden, false);
   assert.match(badge.textContent, /Previously blocked · Removed/);
+
+  modern = true;
+  const container = new Element("post-container");
+  container.matches = selector => selector === '[role="link"]';
+  container.closest = () => null;
+  const outerLink = new Element("outer-link");
+  outerLink.href = postLink.href;
+  outerLink.matches = selector => selector === "a[href]";
+  container.append(outerLink, card);
+  listeners.changed({ reviewedList: { newValue: { handles: [] } } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(reportButton.hidden, false);
+  assert.equal(wrapper.parentElement, group);
+  assert.equal(badgeWrapper.parentElement, header);
+
+  outerLink.href = "https://x.com/Another_User/status/456";
+  listeners.changed({ reviewedList: { newValue: { handles: [] } } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(wrapper.parentElement, null);
+  assert.equal(badgeWrapper.parentElement, null);
+
+  outerLink.href = postLink.href;
+  listeners.changed({ reviewedList: { newValue: { handles: ["former_user"] } } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  const modernBadge = header.children.find(element => element.classList.contains("rrx-listed"));
+  assert.equal(modernBadge.children[0].textContent, "Blocked on blockedforaireply.com");
+
+  container.matches = () => false;
+  globalThis.location.href = postLink.href;
+  listeners.changed({ hideBlockedAccounts: { newValue: true } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(card["data-rrx-hidden"], false);
+  assert.equal(modernBadge.parentElement, header);
+
+  listeners.changed({ showInlineControls: { newValue: false } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(modernBadge.parentElement, null);
 });

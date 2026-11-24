@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  CACHE_KEY, FEED_URL, REMOVED_CACHE_KEY, REMOVED_FEED_URL, REMOVED_SYNC_KEY, REPORT_URL, SYNC_KEY
+  CACHE_KEY, FEED_URL, REMOVED_CACHE_KEY, REMOVED_FEED_URL, REMOVED_SYNC_KEY, REPORTER_KEY, REPORT_URL, SYNC_KEY
 } from "../extension/reply.mjs";
 
 function event() {
@@ -48,14 +48,18 @@ test("worker keeps the last good list on failure and replaces it on recovery", a
       create: async ({ url }) => { opened.push(url); return { id: 42 }; },
       update: async (id, { url }) => {
         assert.equal(id, 42);
-        assert.equal(pending["reportDraft:42"], "https://x.com/Some_User/status/222");
+        assert.deepEqual(pending["reportDraft:42"], {
+          url: "https://x.com/Some_User/status/222",
+          reporter: "my_reporter"
+        });
         opened.push(url);
       }
     },
     storage: {
       local: {
         get: async () => ({
-          [CACHE_KEY]: cache, [REMOVED_CACHE_KEY]: removedCache, [REMOVED_SYNC_KEY]: removedSyncIssue, [SYNC_KEY]: syncIssue
+          [CACHE_KEY]: cache, [REMOVED_CACHE_KEY]: removedCache, [REMOVED_SYNC_KEY]: removedSyncIssue,
+          [REPORTER_KEY]: "my_reporter", [SYNC_KEY]: syncIssue
         }),
         set: async values => {
           if (CACHE_KEY in values) cache = values[CACHE_KEY];
@@ -143,8 +147,16 @@ test("worker keeps the last good list on failure and replaces it on recovery", a
   const otherTab = { url: REPORT_URL, tab: { id: 43 } };
   const reportTab = { url: REPORT_URL, tab: { id: 42 } };
   assert.deepEqual(await send({ type: "report-draft" }, otherTab), { ok: true });
-  assert.deepEqual(await send({ type: "report-draft" }, reportTab), { ok: true, url: postUrl });
-  assert.deepEqual(await send({ type: "report-draft" }, reportTab), { ok: true, url: postUrl });
+  assert.deepEqual(await send({ type: "report-draft" }, reportTab), {
+    ok: true, url: postUrl, reporter: "my_reporter"
+  });
+  assert.deepEqual(await send({ type: "report-draft" }, reportTab), {
+    ok: true, url: postUrl, reporter: "my_reporter"
+  });
+  pending["reportDraft:42"] = postUrl;
+  assert.deepEqual(await send({ type: "report-draft" }, reportTab), {
+    ok: true, url: postUrl, reporter: "my_reporter"
+  });
   onRemoved.listener(42);
   assert.deepEqual(await send({ type: "report-draft" }, reportTab), { ok: true });
 });
@@ -154,13 +166,25 @@ test("review action opens the selected permalink after a list removal and offers
   const changes = event();
   const opened = [];
   const copied = [];
+  let savedReporter = "previous_user";
   const postUrl = "https://x.com/Some_User/status/222";
   const draftUrl = new URL("chrome-extension://test-extension/review.html");
   draftUrl.searchParams.set("post", postUrl);
 
   globalThis.window = { location: { href: draftUrl.href } };
   globalThis.document = {
-    querySelector: selector => (controls[selector] ??= { dataset: {}, addEventListener(_type, listener) { this.listener = listener; } })
+    querySelector: selector => (controls[selector] ??= {
+      dataset: {},
+      attributes: {},
+      listeners: {},
+      addEventListener(type, listener) {
+        this.listeners[type] = listener;
+        this.listener = listener;
+      },
+      setAttribute(name, value) { this.attributes[name] = value; },
+      getAttribute(name) { return this.attributes[name] ?? null; },
+      focus() { this.focused = true; }
+    })
   };
   t.mock.getter(globalThis, "navigator", () => ({
     clipboard: { writeText: async value => { copied.push(value); } }
@@ -176,11 +200,25 @@ test("review action opens the selected permalink after a list removal and offers
             removedAt: { former_user: "2026-11-20" },
             updatedAt: Date.now() - 60_000
           },
-          [REMOVED_SYNC_KEY]: { type: "failed" }
-        })
+          [REMOVED_SYNC_KEY]: { type: "failed" },
+          reporterUsername: savedReporter
+        }),
+        set: async values => {
+          if (Object.hasOwn(values, "reporterUsername")) savedReporter = values.reporterUsername;
+        },
+        remove: async key => {
+          if (key === "reporterUsername") savedReporter = undefined;
+        }
       }
     },
-    runtime: { sendMessage: async message => { opened.push(message); return { ok: true }; } }
+    runtime: {
+      sendMessage: async message => {
+        if (message.type === "report-quota") return { ok: false };
+        if (message.type === "submit-report") assert.equal(savedReporter, "new_user");
+        opened.push(message);
+        return { ok: true };
+      }
+    }
   };
   await import("../extension/review.mjs");
 
@@ -207,8 +245,20 @@ test("review action opens the selected permalink after a list removal and offers
   }, "local");
   assert.match(controls["#removed-freshness"].textContent, /Previously blocked: Synced/);
   assert.equal(controls["#removed-freshness"].dataset.state, "");
+
+  controls["#reporter"].value = "bad-name";
+  await controls["#reporter"].listeners.change();
+  assert.equal(savedReporter, "previous_user");
+  assert.equal(controls["#reporter"].getAttribute("aria-invalid"), "true");
+  assert.equal(controls["#reporter-error"].hidden, false);
   await controls["#report"].listener();
-  assert.deepEqual(opened, [{ type: "open-report", url: postUrl }]);
+  assert.deepEqual(opened, []);
+  assert.equal(controls["#reporter"].focused, true);
+
+  controls["#reporter"].value = "new_user";
+  await controls["#report"].listener();
+  assert.deepEqual(opened, [{ type: "submit-report", url: postUrl }]);
+  assert.equal(savedReporter, "new_user");
   await controls["#copy"].listener();
   assert.deepEqual(copied, [postUrl]);
 });
