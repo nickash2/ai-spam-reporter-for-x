@@ -100,12 +100,6 @@ jobs:
           git checkout -B main origin/main
 
           changed_extension_files="$(git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" -- extension/)"
-          if [ -z "$changed_extension_files" ]; then
-            echo "No extension package files changed; skipping the automatic release."
-            exit 0
-          fi
-          echo "Extension package files changed; continuing with the release."
-
           version="$(jq -er '.version | select(type == "string")' extension/manifest.json)"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Manifest version must have three numeric components."
@@ -124,6 +118,16 @@ jobs:
             fi
           fi
 
+          if [ -z "$changed_extension_files" ] && [ -z "$next_version" ]; then
+            echo "No extension package changes or unreleased version bump; skipping the automatic release."
+            exit 0
+          fi
+          if [ -n "$changed_extension_files" ]; then
+            echo "Extension package files changed; continuing with the release."
+          else
+            echo "Manifest version is ahead of the latest release; continuing with the release."
+          fi
+
           if [ -z "$next_version" ]; then
             IFS=. read -r major minor patch <<< "$version"
             next_version="$major.$minor.$((patch + 1))"
@@ -131,13 +135,18 @@ jobs:
           tag="v$next_version"
           archive="ai-spam-reporter-extension-$tag.zip"
 
-          jq --arg version "$next_version" '.version = $version' extension/manifest.json > extension/manifest.json.tmp
-          mv extension/manifest.json.tmp extension/manifest.json
+          if [ "$(jq -r '.version' extension/manifest.json)" != "$next_version" ]; then
+            jq --arg version "$next_version" '.version = $version' extension/manifest.json > extension/manifest.json.tmp
+            mv extension/manifest.json.tmp extension/manifest.json
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add extension/manifest.json
-          git commit -m "chore: release $tag [skip ci]"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add extension/manifest.json
+            git commit -m "chore: release $tag [skip ci]"
+          else
+            echo "Manifest is already at $next_version; no version commit is needed."
+          fi
+
           git tag "$tag"
           git push origin HEAD:refs/heads/main "refs/tags/$tag"
 
