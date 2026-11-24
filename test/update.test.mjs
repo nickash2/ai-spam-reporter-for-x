@@ -45,6 +45,7 @@ test("manual update check forces a new check and shows the release download", as
     runtime: {
       getManifest: () => ({ version: "1.4.4" }),
       sendMessage: async message => {
+        if (message.type === "report-quota") return { ok: false };
         messages.push(message);
         if (failUpdateCheck) return { ok: false, update: null };
         return message.force

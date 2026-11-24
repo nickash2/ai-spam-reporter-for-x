@@ -1,6 +1,6 @@
 import {
-  CACHE_KEY, FEED_URL, RELEASES_API_URL, REMOVED_CACHE_KEY, REMOVED_FEED_URL, REMOVED_SYNC_KEY, REPORT_URL, SYNC_KEY,
-  UPDATE_CACHE_KEY, UPDATE_CHECK_INTERVAL_MS, findNewerRelease, parsePostLink, parseRemovedFeed, parseUsernameFeed
+  CACHE_KEY, FEED_URL, RELEASES_API_URL, REMOVED_CACHE_KEY, REMOVED_FEED_URL, REMOVED_SYNC_KEY, REPORTER_KEY, REPORT_API_URL, REPORT_HISTORY_KEY, REPORT_LIMIT, REPORT_URL, SYNC_KEY,
+  UPDATE_CACHE_KEY, UPDATE_CHECK_INTERVAL_MS, findNewerRelease, parsePostLink, parseRemovedFeed, parseUsernameFeed, reportQuota
 } from "./reply.mjs";
 
 const refreshAlarm = "refresh-reviewed-list";
@@ -210,6 +210,13 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     operation = refreshList(message.digest);
   } else if (message?.type === "open-report") {
     operation = openReport(message.url);
+  } else if (message?.type === "report-quota") {
+    operation = chrome.storage.local.get(REPORT_HISTORY_KEY).then(stored => {
+      const { used, limit, resetMs } = reportQuota(stored[REPORT_HISTORY_KEY]);
+      return { ok: true, used, limit, resetMs };
+    });
+  } else if (message?.type === "submit-report") {
+    operation = submitReport(message.url);
   } else if (message?.type === "report-draft" && sender.url === REPORT_URL && Number.isInteger(sender.tab?.id)) {
     operation = getDraft(sender.tab.id);
   } else {
@@ -243,6 +250,58 @@ async function openReport(value) {
     await Promise.allSettled([chrome.storage.session.remove(key), chrome.tabs.remove(tab.id)]);
     throw error;
   }
+}
+
+async function submitReport(value) {
+  const post = parsePostLink(value);
+  if (!post) return { ok: false, error: "Choose the URL of an X post." };
+
+  const stored = await chrome.storage.local.get([CACHE_KEY, REPORTER_KEY, REPORT_HISTORY_KEY]);
+  if (stored[CACHE_KEY]?.handles.includes(post.handle.toLowerCase())) {
+    return { ok: false, error: "This account is already on the blocklist." };
+  }
+
+  const quota = reportQuota(stored[REPORT_HISTORY_KEY]);
+  if (quota.used >= quota.limit) {
+    return { ok: false, error: `Hourly report limit reached. Try again in ${Math.ceil(quota.resetMs / 60_000)} min.` };
+  }
+  if (quota.cooldownMs > 0) {
+    return { ok: false, error: `Please wait ${Math.ceil(quota.cooldownMs / 1000)}s before the next report.` };
+  }
+
+  const payload = { tweet_url: post.url };
+  if (stored[REPORTER_KEY]) payload.reporter = stored[REPORTER_KEY];
+
+  let response;
+  try {
+    response = await fetch(REPORT_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      credentials: "omit"
+    });
+  } catch {
+    return { ok: false, fallback: true, error: "Couldn’t reach the report service." };
+  }
+
+  const body = await response.json().catch(() => null);
+  if (response.ok && body?.ok) {
+    await chrome.storage.local.set({ [REPORT_HISTORY_KEY]: [...quota.recent, Date.now()] });
+    return { ok: true, message: body.message };
+  }
+  if (response.status === 429) {
+    // The server's limit is per IP, so fill our local window to match.
+    const filled = Array.from({ length: Math.max(0, REPORT_LIMIT - quota.used) }, () => Date.now());
+    await chrome.storage.local.set({ [REPORT_HISTORY_KEY]: [...quota.recent, ...filled] });
+    const seconds = Number(body?.retry_after ?? response.headers.get("Retry-After"));
+    const wait = Number.isFinite(seconds) && seconds > 0 ? ` Try again in ${Math.ceil(seconds / 60)} min.` : "";
+    return { ok: false, error: `Report limit reached.${wait}` };
+  }
+  return {
+    ok: false,
+    fallback: response.status >= 500,
+    error: typeof body?.error === "string" ? body.error : "The report was not accepted."
+  };
 }
 
 async function getDraft(tabId) {

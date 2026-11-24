@@ -90,8 +90,13 @@
       button.disabled = true;
       error.hidden = true;
       try {
-        const response = await chrome.runtime.sendMessage({ type: "open-report", url: selected.post.url });
-        if (!response?.ok) throw new Error(response?.error ?? "Could not open the report form.");
+        let response = await chrome.runtime.sendMessage({ type: "submit-report", url: selected.post.url });
+        if (response?.fallback) response = await chrome.runtime.sendMessage({ type: "open-report", url: selected.post.url });
+        else if (response?.ok && control.url === selected.post.url) {
+          error.textContent = "Reported. Thank you!";
+          error.hidden = false;
+        }
+        if (!response?.ok) throw new Error(response?.error ?? "Could not send the report.");
       } catch (failure) {
         if (control.url === selected.post.url) {
           error.textContent = failure.message;

@@ -215,3 +215,7 @@ button:disabled { opacity: .6; cursor: default; }
   .version-info button { width: 44px; min-height: 44px; }
 }
 .credit { grid-column: 1; justify-self: start; color: var(--muted); font-size: 11px; }
+
+.field { display: grid; gap: 5px; font-size: 13px; }
+.field input { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: inherit; }
+.field input[aria-invalid="true"] { border-color: var(--danger-ink); }

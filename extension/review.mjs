@@ -1,6 +1,6 @@
 import {
-  CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_CACHE_KEY, REMOVED_SYNC_KEY, REMOVED_TAG_KEY, SYNC_KEY,
-  UPDATE_CACHE_KEY, parsePostLink
+  CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_CACHE_KEY, REMOVED_SYNC_KEY, REMOVED_TAG_KEY, REPORTER_KEY, SYNC_KEY,
+  UPDATE_CACHE_KEY, normalizeReporter, parsePostLink
 } from "./reply.mjs";
 
 const guidance = document.querySelector("#guidance");
@@ -10,6 +10,8 @@ const permalink = document.querySelector("#permalink");
 const membership = document.querySelector("#membership");
 const report = document.querySelector("#report");
 const reportTip = document.querySelector("#report-tip");
+const reporter = document.querySelector("#reporter");
+const quota = document.querySelector("#quota");
 const copy = document.querySelector("#copy");
 const inline = document.querySelector("#inline");
 const hide = document.querySelector("#hide");
@@ -57,6 +59,17 @@ function showUpdate(update) {
 function showUpdateError(message = "") {
   updateStatus.textContent = message;
   updateStatus.hidden = !message;
+}
+
+async function showQuota() {
+  try {
+    const result = await chrome.runtime.sendMessage({ type: "report-quota" });
+    if (!result?.ok) return;
+    quota.textContent = `Reports this hour: ${result.used}/${result.limit}` +
+      (result.used >= result.limit ? ` · resets in ${Math.ceil(result.resetMs / 60_000)} min` : "");
+  } catch {
+    quota.textContent = "";
+  }
 }
 
 async function checkForUpdates(force = false) {
@@ -184,16 +197,41 @@ report.addEventListener("click", async () => {
 
   openingReport = true;
   report.disabled = true;
-  feedback.textContent = "Opening the report form…";
+  feedback.textContent = "Sending report…";
   try {
-    const result = await chrome.runtime.sendMessage({ type: "open-report", url: post.url });
-    if (!result?.ok) throw new Error(result?.error ?? "Could not open the report form.");
-    feedback.textContent = "Report tab opened. Review the form before sending.";
+    let result = await chrome.runtime.sendMessage({ type: "submit-report", url: post.url });
+    if (result?.fallback) {
+      feedback.textContent = "Couldn’t send directly. Opening the report form…";
+      result = await chrome.runtime.sendMessage({ type: "open-report", url: post.url });
+      if (!result?.ok) throw new Error(result?.error ?? "Could not open the report form.");
+      feedback.textContent = "Report tab opened. Review the form before sending.";
+    } else {
+      if (!result?.ok) throw new Error(result?.error ?? "Could not send the report.");
+      feedback.textContent = result.message || "Reported. Thank you!";
+    }
   } catch (error) {
     feedback.textContent = error.message;
   } finally {
     openingReport = false;
     report.disabled = alreadyListed;
+    showQuota();
+  }
+});
+
+reporter.addEventListener("change", async () => {
+  const value = normalizeReporter(reporter.value);
+  reporter.setAttribute("aria-invalid", String(value === null));
+  if (value === null) {
+    feedback.textContent = "Enter a valid X username (letters, numbers, underscores).";
+    return;
+  }
+  try {
+    if (value) await chrome.storage.local.set({ [REPORTER_KEY]: value });
+    else await chrome.storage.local.remove(REPORTER_KEY);
+    reporter.value = value;
+    feedback.textContent = value ? "Username saved." : "Username cleared.";
+  } catch {
+    feedback.textContent = "Could not save the username.";
   }
 });
 
@@ -269,8 +307,9 @@ acceptList.addEventListener("click", () => {
   if (syncIssue?.type === "drop") requestRefresh(syncIssue.digest);
 });
 const stored = await chrome.storage.local.get([
-  CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_CACHE_KEY, REMOVED_SYNC_KEY, REMOVED_TAG_KEY, SYNC_KEY
+  CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_CACHE_KEY, REMOVED_SYNC_KEY, REMOVED_TAG_KEY, REPORTER_KEY, SYNC_KEY
 ]);
+reporter.value = stored[REPORTER_KEY] ?? "";
 removedTag.checked = stored[REMOVED_TAG_KEY] !== false;
 inline.checked = stored[INLINE_KEY] !== false;
 hide.checked = stored[HIDE_KEY] === true;
@@ -281,3 +320,4 @@ syncIssue = stored[SYNC_KEY];
 showList();
 showInlineStatus();
 if (!cache) requestRefresh();
+showQuota();

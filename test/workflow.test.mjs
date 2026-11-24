@@ -180,7 +180,7 @@ test("review action opens the selected permalink after a list removal and offers
         })
       }
     },
-    runtime: { sendMessage: async message => { opened.push(message); return { ok: true }; } }
+    runtime: { sendMessage: async message => { if (message.type === "report-quota") return { ok: false }; opened.push(message); return { ok: true }; } }
   };
   await import("../extension/review.mjs");
 
@@ -208,7 +208,7 @@ test("review action opens the selected permalink after a list removal and offers
   assert.match(controls["#removed-freshness"].textContent, /Previously blocked: Synced/);
   assert.equal(controls["#removed-freshness"].dataset.state, "");
   await controls["#report"].listener();
-  assert.deepEqual(opened, [{ type: "open-report", url: postUrl }]);
+  assert.deepEqual(opened, [{ type: "submit-report", url: postUrl }]);
   await controls["#copy"].listener();
   assert.deepEqual(copied, [postUrl]);
 });

@@ -1,6 +1,12 @@
 import "./post-link.js";
 
 export const REPORT_URL = "https://blockedforaireply.com/";
+export const REPORT_API_URL = new URL("api/report.php", REPORT_URL).href;
+export const REPORTER_KEY = "reporterUsername";
+export const REPORT_HISTORY_KEY = "reportHistory";
+export const REPORT_LIMIT = 20;
+export const REPORT_WINDOW_MS = 60 * 60 * 1000;
+export const REPORT_COOLDOWN_MS = 5000;
 export const FEED_URL = new URL("api/usernames.txt", REPORT_URL).href;
 export const REMOVED_FEED_URL = new URL("api/removed.json", REPORT_URL).href;
 export const RELEASES_API_URL = "https://api.github.com/repos/nickash2/ai-spam-reporter-for-x/releases/latest";
@@ -15,6 +21,12 @@ export const REMOVED_TAG_KEY = "showPreviouslyBlocked";
 export const HIDE_KEY = "hideBlockedAccounts";
 export const REMOVED_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 export const { parsePostLink } = globalThis.replyReportLinks;
+
+export function normalizeReporter(value) {
+  const handle = String(value ?? "").trim().replace(/^@/, "");
+  if (!handle) return "";
+  return globalThis.replyReportLinks.handlePattern.test(handle) ? handle : null;
+}
 
 export function parseUsernameFeed(body) {
   const handles = body.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
@@ -98,4 +110,17 @@ export function findNewerRelease(release, installedVersion) {
   }
 
   return { version: latest.join("."), url: downloadUrl.href };
+}
+
+export function reportQuota(history, now = Date.now()) {
+  const recent = (Array.isArray(history) ? history : []).filter(time => Number.isFinite(time) && now - time < REPORT_WINDOW_MS);
+  const used = recent.length;
+  const last = Math.max(0, ...recent);
+  return {
+    recent,
+    used,
+    limit: REPORT_LIMIT,
+    resetMs: used ? Math.min(...recent) + REPORT_WINDOW_MS - now : 0,
+    cooldownMs: Math.max(0, last + REPORT_COOLDOWN_MS - now)
+  };
 }

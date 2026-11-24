@@ -26,10 +26,19 @@
       </div>
       <p id="membership" class="badge" role="status"></p>
       <div class="actions">
-        <button id="report" type="button" class="primary">Open report form <span aria-hidden="true">↗</span></button>
+        <button id="report" type="button" class="primary">Report post</button>
         <button id="copy" type="button" class="secondary">Copy link</button>
       </div>
-      <p id="report-tip" class="note">Review and send on the report page.</p>
+      <p id="report-tip" class="note">Sent directly to blockedforaireply.com.</p>
+      <p id="quota" class="note" role="status"></p>
+    </section>
+
+    <section class="card" aria-label="Leaderboard">
+      <label class="field">
+        <span>Your X username (optional)</span>
+        <input id="reporter" type="text" placeholder="username" maxlength="16" autocomplete="off" spellcheck="false" aria-describedby="reporter-help">
+      </label>
+      <p id="reporter-help" class="note">Credits your reports on the Top reporters board.</p>
     </section>
 
     <section class="preferences" aria-label="X controls">
