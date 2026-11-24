@@ -53,6 +53,24 @@ test("submit-report posts the link and reporter, and maps failures", async t => 
 
   assert.equal(store.reportHistory.length, 20);
   store.reportHistory = [];
+
+  status = 400;
+  reply = { ok: false, error: "Invalid post." };
+  assert.deepEqual(await send(post), { ok: false, fallback: false, error: "Invalid post." });
+
+  reply = { ok: false, error: "Please complete the human check, then send again." };
+  assert.deepEqual(await send(post), {
+    ok: false, fallback: true, error: "Please complete the human check, then send again."
+  });
+
+  status = 401;
+  reply = { ok: false, error: "API key required." };
+  assert.equal((await send(post)).fallback, true);
+
+  status = 403;
+  reply = { ok: false, error: "Forbidden." };
+  assert.equal((await send(post)).fallback, true);
+
   status = 503;
   reply = { ok: false };
   assert.equal((await send(post)).fallback, true);

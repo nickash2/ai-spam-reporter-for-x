@@ -11,6 +11,7 @@ const membership = document.querySelector("#membership");
 const report = document.querySelector("#report");
 const reportTip = document.querySelector("#report-tip");
 const reporter = document.querySelector("#reporter");
+const reporterError = document.querySelector("#reporter-error");
 const quota = document.querySelector("#quota");
 const copy = document.querySelector("#copy");
 const inline = document.querySelector("#inline");
@@ -28,6 +29,26 @@ const versionLabel = document.querySelector("#version-label");
 const updateLink = document.querySelector("#update-link");
 const updateRefresh = document.querySelector("#update-refresh");
 const updateStatus = document.querySelector("#update-status");
+
+const reporterErrorMessage = "Use 1–15 letters, numbers, or underscores. An @ at the start is optional.";
+
+function showReporterError() {
+  reporter.setAttribute("aria-invalid", "true");
+  reporterError.textContent = reporterErrorMessage;
+  reporterError.hidden = false;
+}
+
+function clearReporterError() {
+  reporter.setAttribute("aria-invalid", "false");
+  reporterError.textContent = "";
+  reporterError.hidden = true;
+}
+
+async function saveReporter(value) {
+  if (value) await chrome.storage.local.set({ [REPORTER_KEY]: value });
+  else await chrome.storage.local.remove(REPORTER_KEY);
+  reporter.value = value;
+}
 
 const draft = new URL(window.location.href).searchParams;
 const [activeTab] = draft.has("post") ? [] : await chrome.tabs.query({ active: true, currentWindow: true });
@@ -195,6 +216,20 @@ if (installedVersion) checkForUpdates();
 report.addEventListener("click", async () => {
   if (!post || report.disabled) return;
 
+  const reporterValue = normalizeReporter(reporter.value);
+  if (reporterValue === null) {
+    showReporterError();
+    reporter.focus();
+    return;
+  }
+  clearReporterError();
+  try {
+    await saveReporter(reporterValue);
+  } catch {
+    feedback.textContent = "Could not save your username, so the report wasn't sent.";
+    return;
+  }
+
   openingReport = true;
   report.disabled = true;
   feedback.textContent = "Sending report…";
@@ -218,17 +253,21 @@ report.addEventListener("click", async () => {
   }
 });
 
+reporter.addEventListener("input", () => {
+  if (reporter.getAttribute("aria-invalid") === "true" && normalizeReporter(reporter.value) !== null) {
+    clearReporterError();
+  }
+});
+
 reporter.addEventListener("change", async () => {
   const value = normalizeReporter(reporter.value);
-  reporter.setAttribute("aria-invalid", String(value === null));
   if (value === null) {
-    feedback.textContent = "Enter a valid X username (letters, numbers, underscores).";
+    showReporterError();
     return;
   }
+  clearReporterError();
   try {
-    if (value) await chrome.storage.local.set({ [REPORTER_KEY]: value });
-    else await chrome.storage.local.remove(REPORTER_KEY);
-    reporter.value = value;
+    await saveReporter(value);
     feedback.textContent = value ? "Username saved." : "Username cleared.";
   } catch {
     feedback.textContent = "Could not save the username.";

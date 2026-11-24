@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  findNewerRelease, parsePostLink, parseRemovedFeed, parseUsernameFeed, REMOVED_RETENTION_MS
+  findNewerRelease, normalizeReporter, parsePostLink, parseRemovedFeed, parseUsernameFeed, REMOVED_RETENTION_MS
 } from "../extension/reply.mjs";
 
 test("preserves the exact post ID and removes tracking and media suffixes", () => {
@@ -31,6 +31,15 @@ test("rejects links that do not identify a post and its author on X", () => {
 
 test("normalizes and deduplicates handles across line-ending formats", () => {
   assert.deepEqual(parseUsernameFeed("\uFEFF BOB \r\nAlice\nalice\n\n"), ["alice", "bob"]);
+});
+
+test("normalizes reporter usernames and enforces the X handle limit", () => {
+  assert.equal(normalizeReporter(" @Nick_1 "), "Nick_1");
+  assert.equal(normalizeReporter(""), "");
+  assert.equal(normalizeReporter("a".repeat(15)), "a".repeat(15));
+  assert.equal(normalizeReporter(`@${"a".repeat(15)}`), "a".repeat(15));
+  assert.equal(normalizeReporter("a".repeat(16)), null);
+  assert.equal(normalizeReporter("nick-name"), null);
 });
 
 test("rejects empty, partially malformed, and HTML feeds", () => {

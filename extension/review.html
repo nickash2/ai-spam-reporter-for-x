@@ -33,12 +33,16 @@
       <p id="quota" class="note" role="status"></p>
     </section>
 
-    <section class="card" aria-label="Leaderboard">
-      <label class="field">
+    <section class="reporter-section" aria-label="Report credit">
+      <label class="reporter-field">
         <span>Your X username (optional)</span>
-        <input id="reporter" type="text" placeholder="username" maxlength="16" autocomplete="off" spellcheck="false" aria-describedby="reporter-help">
+        <span class="reporter-input">
+          <span class="reporter-prefix" aria-hidden="true">@</span>
+          <input id="reporter" type="text" placeholder="username" maxlength="16" autocomplete="off" spellcheck="false" aria-describedby="reporter-help reporter-error">
+        </span>
       </label>
-      <p id="reporter-help" class="note">Credits your reports on the Top reporters board.</p>
+      <p id="reporter-help" class="note">Your username appears on the public Top reporters board.</p>
+      <p id="reporter-error" class="field-error" role="alert" hidden></p>
     </section>
 
     <section class="preferences" aria-label="X controls">

@@ -297,10 +297,12 @@ async function submitReport(value) {
     const wait = Number.isFinite(seconds) && seconds > 0 ? ` Try again in ${Math.ceil(seconds / 60)} min.` : "";
     return { ok: false, error: `Report limit reached.${wait}` };
   }
+  const error = typeof body?.error === "string" ? body.error : "The report was not accepted.";
   return {
     ok: false,
-    fallback: response.status >= 500,
-    error: typeof body?.error === "string" ? body.error : "The report was not accepted."
+    fallback: response.status === 401 || response.status === 403 || response.status >= 500 ||
+      /human check|human verification|captcha/i.test(error),
+    error
   };
 }
 
