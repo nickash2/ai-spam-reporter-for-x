@@ -152,10 +152,37 @@
     return !card.parentElement?.closest("article");
   }
 
+  function updateThreadItems(cards) {
+    const hiddenItems = new Set(
+      cards
+        .filter(item => item.hasAttribute("data-rrx-hidden") && item.parentElement?.matches?.('[role="link"]'))
+        .map(item => item.parentElement)
+    );
+    for (const card of cards) {
+      const item = card.parentElement;
+      if (!item?.matches?.('[role="link"]') || !item.parentElement) continue;
+      if (hiddenItems.has(item)) {
+        item.toggleAttribute("data-rrx-trim-top", false);
+        item.toggleAttribute("data-rrx-trim-bottom", false);
+        item.toggleAttribute("data-rrx-divider-bottom", false);
+        continue;
+      }
+      const siblings = [...item.parentElement.children];
+      const index = siblings.indexOf(item);
+      const prevHidden = index > 0 && hiddenItems.has(siblings[index - 1]);
+      const nextHidden = index + 1 < siblings.length && hiddenItems.has(siblings[index + 1]);
+      const nextVisible = nextHidden ? siblings.slice(index + 1).find(el => !hiddenItems.has(el)) : null;
+      item.toggleAttribute("data-rrx-trim-top", prevHidden);
+      item.toggleAttribute("data-rrx-trim-bottom", nextHidden && (!nextVisible || Boolean(nextVisible.matches?.('[role="link"]'))));
+      item.toggleAttribute("data-rrx-divider-bottom", nextHidden && !nextVisible);
+    }
+  }
+
   function updateContainer(container, attribute) {
     if (!container) return;
     const cards = [...container.querySelectorAll(cardSelector)].filter(isTopLevelCard);
     container.toggleAttribute(attribute, cards.length > 0 && cards.every(item => item.hasAttribute("data-rrx-hidden")));
+    if (attribute === "data-rrx-collapsed") updateThreadItems(cards);
   }
 
   function updateCard(card) {

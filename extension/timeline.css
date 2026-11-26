@@ -128,6 +128,15 @@
   display: none !important;
 }
 
+[data-rrx-trim-top] span[aria-hidden="true"]:has(+ [data-post-avatar]),
+[data-rrx-trim-bottom] [data-post-avatar] + span[aria-hidden="true"] {
+  display: none !important;
+}
+
+[data-rrx-divider-bottom] {
+  border-bottom: 1px solid var(--x-border-divider, rgba(255, 255, 255, 0.2)) !important;
+}
+
 /* X ignores zero-height measurements; 1px lets its virtualizer close the gap. */
 li[data-index][data-rrx-collapsed] {
   height: 1px !important;

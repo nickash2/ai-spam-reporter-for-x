@@ -363,6 +363,8 @@ test("timeline controls support legacy and newer post markup", async t => {
   };
   siblingProfileLink.closest = selector => selector === cardSelector ? siblingCard : null;
   siblingPostLink.closest = selector => selector === cardSelector ? siblingCard : null;
+  const threadList = new Element("thread-list");
+  threadList.append(siblingContainer, container);
   siblingCards = [siblingCard];
 
   listeners.changed({ reviewedList: { newValue: { handles: ["former_user"] } } }, "local");
@@ -371,6 +373,26 @@ test("timeline controls support legacy and newer post markup", async t => {
   assert.equal(siblingCard["data-rrx-hidden"], false);
   assert.equal(feedCell["data-rrx-hidden"], false);
   assert.equal(virtualRow["data-rrx-collapsed"], false);
+  assert.equal(siblingContainer["data-rrx-trim-top"], false);
+  assert.equal(siblingContainer["data-rrx-trim-bottom"], true);
+  assert.equal(siblingContainer["data-rrx-divider-bottom"], true);
+
+  // When a "Show replies" button follows the hidden reply, keep the connector to the button.
+  const showRepliesButton = new Element("show-replies-button");
+  threadList.append(showRepliesButton);
+  listeners.changed({ reviewedList: { newValue: { handles: ["former_user"] } } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(siblingContainer["data-rrx-trim-bottom"], false);
+  assert.equal(siblingContainer["data-rrx-divider-bottom"], false);
+  showRepliesButton.remove();
+
+  // When the hidden reply is above a visible reply, trim the visible reply's top connector.
+  threadList.replaceChildren(container, siblingContainer);
+  listeners.changed({ reviewedList: { newValue: { handles: ["former_user"] } } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(siblingContainer["data-rrx-trim-top"], true);
+  assert.equal(siblingContainer["data-rrx-trim-bottom"], false);
+  assert.equal(siblingContainer["data-rrx-divider-bottom"], false);
 
   // If every top-level reply in the shared container is blocked, the container collapses.
   listeners.changed({ reviewedList: { newValue: { handles: ["former_user", "parent_reply"] } } }, "local");
@@ -388,12 +410,15 @@ test("timeline controls support legacy and newer post markup", async t => {
   assert.equal(feedCell["data-rrx-hidden"], false);
   assert.equal(virtualRow["data-rrx-collapsed"], false);
 
-  siblingCards = [];
   listeners.changed({ hideBlockedAccounts: { newValue: false } }, "local");
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(card["data-rrx-hidden"], false);
   assert.equal(feedCell["data-rrx-hidden"], false);
   assert.equal(virtualRow["data-rrx-collapsed"], false);
+  assert.equal(siblingContainer["data-rrx-trim-top"], false);
+  assert.equal(siblingContainer["data-rrx-trim-bottom"], false);
+  assert.equal(siblingContainer["data-rrx-divider-bottom"], false);
+  siblingCards = [];
 
   listeners.changed({ showInlineControls: { newValue: false } }, "local");
   await new Promise(resolve => setTimeout(resolve, 10));
