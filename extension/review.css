@@ -152,9 +152,6 @@ button:disabled { opacity: .6; cursor: default; }
 
 .setting input:checked::before { left: 17px; }
 
-.setting-group { padding: 0; }
-.setting-group .setting { padding: 0; }
-.setting-help { margin-top: 2px; padding-right: 42px; }
 #inline-status { margin-top: 3px; }
 
 .list { border-top: 1px solid var(--line); padding-top: 11px; }
