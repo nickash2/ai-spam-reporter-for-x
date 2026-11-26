@@ -71,10 +71,12 @@
     };
   }
 
+  const actionSelector = '[data-testid="reply"], [data-testid="like"], [data-testid="unlike"], a[href^="/compose/post?in_reply_to="], a[href$="/analytics"], button[aria-label*="Like"], button[aria-label*="Repost"], button[aria-label*="Bookmark"]';
+
   function findActionRow(card) {
     return [...card.querySelectorAll('[role="group"]')].find(group =>
       belongsToPost(group, card) &&
-      [...group.querySelectorAll('[data-testid="reply"], [data-testid="like"], [data-testid="unlike"], a[href^="/compose/post?in_reply_to="]')]
+      [...group.querySelectorAll(actionSelector)]
         .some(action => belongsToPost(action, card) && action.closest('[role="group"]') === group)
     );
   }
@@ -205,7 +207,7 @@
       return;
     }
 
-    const { post, handle, header, timestamp } = selection;
+    const { post, handle, header } = selection;
     if (!control) {
       control = createControl(card);
       controls.set(card, control);
@@ -231,7 +233,7 @@
     control.badgeWrapper.classList.toggle("rrx-under-author", tagged);
     if (blocked) control.error.hidden = true;
 
-    const actionRow = blocked ? null : findActionRow(card);
+    const actionRow = !blocked && post ? findActionRow(card) : null;
     control.wrapper.classList.toggle("rrx-in-action-row", Boolean(actionRow));
     if (!tagged) {
       control.badgeWrapper.remove();
@@ -243,10 +245,7 @@
     if (actionRow) {
       if (control.wrapper.parentElement !== actionRow) actionRow.append(control.wrapper);
     } else {
-      const anchor = tagged && control.badgeWrapper.parentElement
-        ? control.badgeWrapper
-        : timestamp && header.contains(timestamp) ? timestamp : header;
-      if (anchor.nextElementSibling !== control.wrapper) anchor.after(control.wrapper);
+      control.wrapper.remove();
     }
   }
 
