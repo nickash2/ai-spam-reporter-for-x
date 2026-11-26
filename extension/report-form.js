@@ -4,7 +4,7 @@
   const draft = await chrome.runtime.sendMessage({ type: "report-draft" }).catch(() => null);
   if (!draft?.url) return;
 
-  function recoveryPanel(input) {
+  function recoveryPanel(input, inDialog = false) {
     const panel = document.createElement(input ? "div" : "aside");
     const status = document.createElement("p");
     status.setAttribute("role", "status");
@@ -15,9 +15,10 @@
     copy.type = "button";
     copy.className = "pill";
     copy.textContent = "Copy link";
-    panel.style.cssText = input
+    copy.style.minHeight = "44px";
+    panel.style.cssText = input || inDialog
       ? "display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-block:8px;font-size:13px"
-      : "position:fixed;bottom:16px;right:16px;z-index:2147483647;width:min(400px,90vw);padding:16px;background:white;color:#202124;border:1px solid #999;border-radius:10px;font:14px system-ui";
+      : "position:fixed;bottom:16px;right:16px;z-index:2147483647;box-sizing:border-box;width:min(400px,calc(100vw - 32px));padding:16px;background:white;color:#202124;border:1px solid #999;border-radius:10px;font:14px system-ui";
     status.style.margin = "0";
     panel.append(status, copy);
 
@@ -80,6 +81,7 @@
 
   const deadline = setTimeout(() => {
     observer.disconnect();
-    document.body.append(recoveryPanel());
+    const dialog = document.querySelector("dialog[open]");
+    (dialog ?? document.body).append(recoveryPanel(undefined, Boolean(dialog)));
   }, 3500);
 })();

@@ -261,4 +261,79 @@ test("review action opens the selected permalink after a list removal and offers
   assert.equal(savedReporter, "new_user");
   await controls["#copy"].listener();
   assert.deepEqual(copied, [postUrl]);
+
+  let finishSave;
+  const pendingSave = new Promise(resolve => { finishSave = resolve; });
+  t.mock.method(chrome.storage.local, "set", async () => pendingSave);
+  const firstReport = controls["#report"].listener();
+  assert.equal(controls["#report"].disabled, true);
+  await controls["#report"].listener();
+  changes.listener({ [CACHE_KEY]: { newValue: { handles: [], updatedAt: Date.now() } } }, "local");
+  assert.equal(controls["#report"].disabled, true);
+  finishSave();
+  await firstReport;
+  assert.equal(opened.length, 2);
+  assert.equal(controls["#report"].disabled, false);
+
+  t.mock.method(chrome.storage.local, "set", async () => { throw new Error("Storage unavailable"); });
+  await controls["#report"].listener();
+  assert.equal(opened.length, 2);
+  assert.match(controls["#feedback"].textContent, /Could not save your username/);
+  assert.equal(controls["#report"].disabled, false);
+  assert.equal(controls["#reporter"].disabled, false);
+});
+
+test("review explains storage initialization failure and restores saved settings on retry", async t => {
+  const globalNames = ["chrome", "document", "window"];
+  const previousGlobals = new Map(globalNames.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+  t.after(() => {
+    for (const [name, descriptor] of previousGlobals) {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else delete globalThis[name];
+    }
+  });
+  const controls = {};
+  globalThis.window = { location: { href: "chrome-extension://test-extension/review.html?post=https://x.com/Example/status/123" } };
+  globalThis.document = {
+    querySelector: selector => (controls[selector] ??= {
+      dataset: {},
+      addEventListener(type, listener) { this.listener = listener; }
+    })
+  };
+  let unavailable = true;
+  globalThis.chrome = {
+    storage: {
+      onChanged: event(),
+      local: {
+        get: async () => {
+          if (unavailable) throw new Error("Storage unavailable");
+          return {
+            [CACHE_KEY]: { handles: [], updatedAt: Date.now() },
+            [REPORTER_KEY]: "saved_user",
+            showInlineControls: false,
+            hideBlockedAccounts: true,
+            showPreviouslyBlocked: false
+          };
+        }
+      }
+    },
+    runtime: { sendMessage: async () => ({ ok: false }) }
+  };
+  await import("../extension/review.mjs?initialization-recovery-test");
+  assert.equal(controls["#load-error"].hidden, false);
+  assert.match(controls["#freshness"].textContent, /unable to load/);
+  for (const id of ["report", "reporter", "inline", "hide", "removed-tag", "refresh"]) {
+    assert.equal(controls[`#${id}`].disabled, true);
+  }
+  assert.equal(controls["#retry-load"].disabled, false);
+  await controls["#report"].listener();
+  unavailable = false;
+  await controls["#retry-load"].listener();
+  assert.equal(controls["#load-error"].hidden, true);
+  assert.equal(controls["#reporter"].value, "saved_user");
+  assert.equal(controls["#inline"].checked, false);
+  assert.equal(controls["#hide"].checked, true);
+  assert.equal(controls["#removed-tag"].checked, false);
+  assert.equal(controls["#report"].disabled, false);
+  assert.match(controls["#freshness"].textContent, /Synced/);
 });

@@ -14,6 +14,11 @@
       <h1>AI Spam Reporter for X</h1>
     </header>
 
+    <section class="load-error" id="load-error" hidden aria-label="Loading error">
+      <p role="alert">Could not load your saved settings and lists. Try again before reporting or changing settings.</p>
+      <button id="retry-load" type="button" class="secondary">Try again</button>
+    </section>
+
     <section class="card empty" id="guidance">
       <h2>Report a post on X</h2>
       <p>Open a post, or select <strong>Report AI Post</strong> directly on X.</p>
@@ -26,7 +31,7 @@
       </div>
       <p id="membership" class="badge" role="status"></p>
       <div class="actions">
-        <button id="report" type="button" class="primary">Report post</button>
+        <button id="report" type="button" class="primary" disabled>Report post</button>
         <button id="copy" type="button" class="secondary">Copy link</button>
       </div>
       <p id="report-tip" class="note">Sent directly to blockedforaireply.com.</p>
@@ -38,7 +43,7 @@
         <span>Your X username (optional)</span>
         <span class="reporter-input">
           <span class="reporter-prefix" aria-hidden="true">@</span>
-          <input id="reporter" type="text" placeholder="username" maxlength="16" autocomplete="off" spellcheck="false" aria-describedby="reporter-help reporter-error">
+          <input id="reporter" type="text" placeholder="username" maxlength="16" autocomplete="off" spellcheck="false" aria-describedby="reporter-help reporter-error" disabled>
         </span>
       </label>
       <p id="reporter-help" class="note">Your username appears on the public Top reporters board.</p>
@@ -48,19 +53,16 @@
     <section class="preferences" aria-label="X controls">
       <label class="setting">
         <span>Show controls on X</span>
-        <input id="inline" type="checkbox" role="switch" checked>
+        <input id="inline" type="checkbox" role="switch" checked disabled>
       </label>
       <label class="setting">
         <span>Hide blocked accounts on X</span>
-        <input id="hide" type="checkbox" role="switch">
+        <input id="hide" type="checkbox" role="switch" disabled>
       </label>
-      <div class="setting-group">
-        <label class="setting">
-          <span>Show "Previously blocked" tag</span>
-          <input id="removed-tag" type="checkbox" role="switch" aria-describedby="removed-tag-help" checked>
-        </label>
-        <p id="removed-tag-help" class="note setting-help">"Blocked" means currently listed; "Previously blocked" means removed from the list.</p>
-      </div>
+      <label class="setting">
+        <span>Show "Previously blocked" tag</span>
+        <input id="removed-tag" type="checkbox" role="switch" checked disabled>
+      </label>
       <p id="inline-status" class="note" role="status" hidden></p>
     </section>
 
@@ -70,11 +72,11 @@
         <p id="freshness" class="note" role="status">Blocklist: checking sync…</p>
         <p id="removed-freshness" class="note" role="status">Previously blocked: checking sync…</p>
       </div>
-      <button id="refresh" type="button" class="secondary">Sync lists</button>
+      <button id="refresh" type="button" class="secondary" disabled>Sync lists</button>
     </footer>
     <div class="sync-warning" id="sync-warning" hidden>
       <p id="sync-detail" role="status"></p>
-      <button id="accept-list" class="secondary" type="button" hidden>Use smaller list</button>
+      <button id="accept-list" class="secondary" type="button" hidden disabled>Use smaller list</button>
     </div>
     <p id="feedback" role="status"></p>
     <footer class="app-footer">
