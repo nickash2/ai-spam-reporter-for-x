@@ -14,13 +14,14 @@ test("timeline controls support legacy and newer post markup", async t => {
 
   const cardSelector = 'article[data-testid="tweet"], article:not([data-testid])';
   const groupSelector = '[role="group"]';
-  const actionSelector = '[data-testid="reply"], [data-testid="like"], [data-testid="unlike"], a[href^="/compose/post?in_reply_to="]';
+  const actionSelector = '[data-testid="reply"], [data-testid="like"], [data-testid="unlike"], a[href^="/compose/post?in_reply_to="], a[href$="/analytics"], button[aria-label*="Like"], button[aria-label*="Repost"], button[aria-label*="Bookmark"]';
   let card;
   let siblingCard;
   let siblingCards = [];
   let feedCell;
   let virtualRow;
   let group;
+  let hasActionRow = true;
   let header;
   let anchors;
   let modern = false;
@@ -96,7 +97,7 @@ test("timeline controls support legacy and newer post markup", async t => {
         return [card, ...siblingCards, quotedCard];
       }
       if (this === card && selector === '[data-testid="User-Name"]') return modern ? [] : [header];
-      if (this === card && selector === groupSelector) return [group];
+      if (this === card && selector === groupSelector) return hasActionRow ? [group] : [];
       if (this === card && selector === "a[href]" && modern) return anchors;
       if (this === header && selector === "a[href]") return anchors;
       if (this === group && selector === actionSelector) {
@@ -290,6 +291,17 @@ test("timeline controls support legacy and newer post markup", async t => {
   assert.equal(wrapper.parentElement, group);
   assert.equal(badgeWrapper.parentElement, authorContainer);
   assert.equal(authorRow.nextElementSibling, badgeWrapper);
+
+  // If the bottom action row is absent, never fall back to placing the Report button in the author header.
+  hasActionRow = false;
+  listeners.changed({ reviewedList: { newValue: { handles: [] } } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(wrapper.parentElement, null);
+  assert.equal(badgeWrapper.parentElement, authorContainer);
+  hasActionRow = true;
+  listeners.changed({ reviewedList: { newValue: { handles: [] } } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(wrapper.parentElement, group);
 
   outerLink.href = "https://x.com/Another_User/status/456";
   listeners.changed({ reviewedList: { newValue: { handles: [] } } }, "local");
