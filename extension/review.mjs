@@ -26,6 +26,8 @@ const syncWarning = document.querySelector("#sync-warning");
 const syncDetail = document.querySelector("#sync-detail");
 const acceptList = document.querySelector("#accept-list");
 const versionNumber = document.querySelector("#version-number");
+const loadError = document.querySelector("#load-error");
+const retryLoad = document.querySelector("#retry-load");
 
 const reporterErrorMessage = "Use 1–15 letters, numbers, or underscores. An @ at the start is optional.";
 
@@ -53,6 +55,7 @@ const post = parsePostLink(draft.has("post") ? draft.get("post") : activeTab?.ur
 const onX = /^https:\/\/(?:www\.)?x\.com\/|^https:\/\/(?:[^./]+\.)?twitter\.com\//i.test(activeTab?.url ?? "");
 
 let openingReport = false;
+let settingsLoaded = false;
 let alreadyListed = false;
 let cache;
 let removedCache;
@@ -103,7 +106,7 @@ function showList() {
   alreadyListed = listed;
   report.hidden = listed;
   reportTip.hidden = listed;
-  report.disabled = alreadyListed || openingReport;
+  report.disabled = !settingsLoaded || alreadyListed || openingReport;
   freshness.title = cache ? new Date(cache.updatedAt).toLocaleString() : "";
   freshness.textContent = `Blocklist: ${cache ? syncLabel(cache.updatedAt) : "not synced yet"}`;
   const removedMessage = removedSyncIssue?.type === "failed"
@@ -149,7 +152,7 @@ const installedVersion = chrome.runtime.getManifest?.().version;
 versionNumber.textContent = installedVersion ? `Version ${installedVersion}` : "Version unavailable";
 
 report.addEventListener("click", async () => {
-  if (!post || report.disabled) return;
+  if (!post || !settingsLoaded || openingReport || report.disabled) return;
 
   const reporterValue = normalizeReporter(reporter.value);
   if (reporterValue === null) {
@@ -158,17 +161,18 @@ report.addEventListener("click", async () => {
     return;
   }
   clearReporterError();
-  try {
-    await saveReporter(reporterValue);
-  } catch {
-    feedback.textContent = "Could not save your username, so the report wasn't sent.";
-    return;
-  }
-
   openingReport = true;
   report.disabled = true;
-  feedback.textContent = "Sending report…";
+  reporter.disabled = true;
+  feedback.textContent = "Preparing report…";
   try {
+    try {
+      await saveReporter(reporterValue);
+    } catch {
+      feedback.textContent = "Could not save your username, so the report wasn't sent.";
+      return;
+    }
+    feedback.textContent = "Sending report…";
     let result = await chrome.runtime.sendMessage({ type: "submit-report", url: post.url });
     if (result?.fallback) {
       feedback.textContent = "Couldn’t send directly. Opening the report form…";
@@ -183,7 +187,8 @@ report.addEventListener("click", async () => {
     feedback.textContent = error.message;
   } finally {
     openingReport = false;
-    report.disabled = alreadyListed;
+    report.disabled = !settingsLoaded || alreadyListed;
+    reporter.disabled = !settingsLoaded;
     showQuota();
   }
 });
@@ -280,18 +285,42 @@ refresh.addEventListener("click", () => requestRefresh());
 acceptList.addEventListener("click", () => {
   if (syncIssue?.type === "drop") requestRefresh(syncIssue.digest);
 });
-const stored = await chrome.storage.local.get([
-  CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_CACHE_KEY, REMOVED_SYNC_KEY, REMOVED_TAG_KEY, REPORTER_KEY, SYNC_KEY
-]);
-reporter.value = stored[REPORTER_KEY] ?? "";
-removedTag.checked = stored[REMOVED_TAG_KEY] !== false;
-inline.checked = stored[INLINE_KEY] !== false;
-hide.checked = stored[HIDE_KEY] === true;
-cache = stored[CACHE_KEY];
-removedCache = stored[REMOVED_CACHE_KEY];
-removedSyncIssue = stored[REMOVED_SYNC_KEY];
-syncIssue = stored[SYNC_KEY];
-showList();
-showInlineStatus();
-if (!cache) requestRefresh();
-showQuota();
+async function loadSettings() {
+  settingsLoaded = false;
+  report.disabled = true;
+  retryLoad.disabled = true;
+  const settingsControls = [reporter, inline, hide, removedTag, refresh, acceptList];
+  for (const control of settingsControls) control.disabled = true;
+  let stored;
+  try {
+    stored = await chrome.storage.local.get([
+      CACHE_KEY, HIDE_KEY, INLINE_KEY, REMOVED_CACHE_KEY, REMOVED_SYNC_KEY, REMOVED_TAG_KEY, REPORTER_KEY, SYNC_KEY
+    ]);
+  } catch {
+    loadError.hidden = false;
+    membership.textContent = "Blocklist unavailable";
+    freshness.textContent = "Blocklist: unable to load";
+    removedFreshness.textContent = "Previously blocked: unable to load";
+    return;
+  } finally {
+    retryLoad.disabled = false;
+  }
+  reporter.value = stored[REPORTER_KEY] ?? "";
+  removedTag.checked = stored[REMOVED_TAG_KEY] !== false;
+  inline.checked = stored[INLINE_KEY] !== false;
+  hide.checked = stored[HIDE_KEY] === true;
+  cache = stored[CACHE_KEY];
+  removedCache = stored[REMOVED_CACHE_KEY];
+  removedSyncIssue = stored[REMOVED_SYNC_KEY];
+  syncIssue = stored[SYNC_KEY];
+  settingsLoaded = true;
+  loadError.hidden = true;
+  for (const control of settingsControls) control.disabled = false;
+  showList();
+  showInlineStatus();
+  if (!cache) requestRefresh();
+  showQuota();
+}
+
+retryLoad.addEventListener("click", loadSettings);
+await loadSettings();
