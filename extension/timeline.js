@@ -148,6 +148,16 @@
     return control;
   }
 
+  function isTopLevelCard(card) {
+    return !card.parentElement?.closest("article");
+  }
+
+  function updateContainer(container, attribute) {
+    if (!container) return;
+    const cards = [...container.querySelectorAll(cardSelector)].filter(isTopLevelCard);
+    container.toggleAttribute(attribute, cards.length > 0 && cards.every(item => item.hasAttribute("data-rrx-hidden")));
+  }
+
   function updateCard(card) {
     let control = controls.get(card);
     const selection = (enabled || hideBlocked) && card.isConnected ? selectPost(card) : null;
@@ -155,9 +165,9 @@
     const blocked = Boolean(selection && reviewed.has(key));
     const hidden = hideBlocked && blocked && !selection.isOpenPost;
     card.toggleAttribute("data-rrx-hidden", hidden);
-    if (!card.parentElement?.closest("article")) {
-      card.closest('[data-testid="cellInnerDiv"]')?.toggleAttribute("data-rrx-hidden", hidden);
-      card.closest("li[data-index]")?.toggleAttribute("data-rrx-collapsed", hidden);
+    if (isTopLevelCard(card)) {
+      updateContainer(card.closest('[data-testid="cellInnerDiv"]'), "data-rrx-hidden");
+      updateContainer(card.closest("li[data-index]"), "data-rrx-collapsed");
     }
     const former = Boolean(selection && showRemoved && !blocked && removed.has(key));
     const tagged = blocked || former;

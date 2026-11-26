@@ -16,6 +16,8 @@ test("timeline controls support legacy and newer post markup", async t => {
   const groupSelector = '[role="group"]';
   const actionSelector = '[data-testid="reply"], [data-testid="like"], [data-testid="unlike"], a[href^="/compose/post?in_reply_to="]';
   let card;
+  let siblingCard;
+  let siblingCards = [];
   let feedCell;
   let virtualRow;
   let group;
@@ -69,11 +71,15 @@ test("timeline controls support legacy and newer post markup", async t => {
       this[name] = enabled;
     }
 
+    hasAttribute(name) {
+      return Boolean(this[name]);
+    }
+
     closest(selector) {
-      if (selector === cardSelector) return card;
+      if (selector === cardSelector) return this === siblingCard ? siblingCard : card;
       if (selector === groupSelector) return group;
-      if (selector === '[data-testid="cellInnerDiv"]' && this === card) return feedCell;
-      if (selector === "li[data-index]" && this === card) return virtualRow;
+      if (selector === '[data-testid="cellInnerDiv"]' && (this === card || this === siblingCard)) return feedCell;
+      if (selector === "li[data-index]" && (this === card || this === siblingCard)) return virtualRow;
       return null;
     }
 
@@ -86,6 +92,9 @@ test("timeline controls support legacy and newer post markup", async t => {
     }
 
     querySelectorAll(selector) {
+      if ((this === feedCell || this === virtualRow) && selector === cardSelector) {
+        return [card, ...siblingCards, quotedCard];
+      }
       if (this === card && selector === '[data-testid="User-Name"]') return modern ? [] : [header];
       if (this === card && selector === groupSelector) return [group];
       if (this === card && selector === "a[href]" && modern) return anchors;
@@ -195,7 +204,7 @@ test("timeline controls support legacy and newer post markup", async t => {
   globalThis.document = {
     body: new Element("body"),
     createElement: name => new Element(name),
-    querySelectorAll: selector => selector === cardSelector ? [card, quotedCard] : []
+    querySelectorAll: selector => selector === cardSelector ? [card, ...siblingCards, quotedCard] : []
   };
   globalThis.chrome = {
     runtime: {
@@ -319,6 +328,67 @@ test("timeline controls support legacy and newer post markup", async t => {
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(virtualRow["data-rrx-collapsed"], true);
 
+  // When a non-blocked reply shares the same virtual row/cell as a blocked reply,
+  // only the blocked reply is hidden; the shared container stays visible.
+  siblingCard = new Element("sibling-reply-card");
+  const siblingHeader = new Element("sibling-header");
+  const siblingProfileLink = new Element("sibling-profile-link");
+  Object.assign(siblingProfileLink, {
+    origin: "https://x.com",
+    pathname: "/Parent_Reply",
+    textContent: "@Parent_Reply",
+    href: "https://x.com/Parent_Reply"
+  });
+  const siblingPostLink = new Element("sibling-post-link");
+  Object.assign(siblingPostLink, {
+    origin: "https://x.com",
+    pathname: "/Parent_Reply/status/789",
+    textContent: "",
+    href: "https://x.com/Parent_Reply/status/789"
+  });
+  siblingHeader.append(siblingProfileLink, siblingPostLink);
+  const siblingAuthorContainer = new Element("sibling-author-container");
+  siblingAuthorContainer.append(siblingHeader);
+  siblingCard.append(siblingAuthorContainer);
+  const siblingContainer = new Element("sibling-post-container");
+  siblingContainer.matches = selector => selector === '[role="link"]';
+  siblingContainer.closest = () => null;
+  const siblingOuterLink = new Element("sibling-outer-link");
+  siblingOuterLink.href = siblingPostLink.href;
+  siblingOuterLink.matches = selector => selector === "a[href]";
+  siblingContainer.append(siblingOuterLink, siblingCard);
+  siblingCard.querySelectorAll = selector => {
+    if (selector === "a[href]") return [siblingProfileLink, siblingPostLink];
+    return [];
+  };
+  siblingProfileLink.closest = selector => selector === cardSelector ? siblingCard : null;
+  siblingPostLink.closest = selector => selector === cardSelector ? siblingCard : null;
+  siblingCards = [siblingCard];
+
+  listeners.changed({ reviewedList: { newValue: { handles: ["former_user"] } } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(card["data-rrx-hidden"], true);
+  assert.equal(siblingCard["data-rrx-hidden"], false);
+  assert.equal(feedCell["data-rrx-hidden"], false);
+  assert.equal(virtualRow["data-rrx-collapsed"], false);
+
+  // If every top-level reply in the shared container is blocked, the container collapses.
+  listeners.changed({ reviewedList: { newValue: { handles: ["former_user", "parent_reply"] } } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(card["data-rrx-hidden"], true);
+  assert.equal(siblingCard["data-rrx-hidden"], true);
+  assert.equal(feedCell["data-rrx-hidden"], true);
+  assert.equal(virtualRow["data-rrx-collapsed"], true);
+
+  // Unblocking one reply restores the shared container while keeping the other hidden.
+  listeners.changed({ reviewedList: { newValue: { handles: ["former_user"] } } }, "local");
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(card["data-rrx-hidden"], true);
+  assert.equal(siblingCard["data-rrx-hidden"], false);
+  assert.equal(feedCell["data-rrx-hidden"], false);
+  assert.equal(virtualRow["data-rrx-collapsed"], false);
+
+  siblingCards = [];
   listeners.changed({ hideBlockedAccounts: { newValue: false } }, "local");
   await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(card["data-rrx-hidden"], false);

@@ -124,8 +124,7 @@
 }
 
 [data-rrx-hidden],
-[role="link"]:has(> article[data-rrx-hidden]),
-[data-testid="cellInnerDiv"]:has(> [data-rrx-hidden]) {
+[role="link"]:has(> article[data-rrx-hidden]) {
   display: none !important;
 }
 
